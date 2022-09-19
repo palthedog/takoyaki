@@ -11,6 +11,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let cards = card::load_cards(&args.card_dir);
-    println!("{:?}", cards);
+    let all_cards = card::load_cards(&args.card_dir);
+
+    all_cards.iter().for_each(|c| println!("{:?}\n{}", c, c));
 }
