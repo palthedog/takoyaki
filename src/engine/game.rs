@@ -1,15 +1,20 @@
-use super::{board::Board, card::Card};
+use std::fmt::Display;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Position {
-    pub x: u32,
-    pub y: u32,
-}
+use super::{
+    board::Board,
+    card::{Card, CardPosition},
+};
 
 #[derive(Debug, Clone)]
 pub struct State {
-    board: Board,
-    turn: u32,
+    pub board: Board,
+    pub turn: u32,
+}
+
+impl Display for State {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "turn: {}\n{}", self.turn, self.board)
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -20,11 +25,10 @@ pub enum Rotation {
     Left,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CardPosition {
-    top_left: Position,
-    rotation: Rotation,
-    special: bool,
+impl Display for Rotation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 pub enum PlayerType {
@@ -40,6 +44,6 @@ pub enum Action {
 
 #[derive(Debug, Clone)]
 pub struct PlayerState {
-    special_count: u32,
-    action_history: Vec<Action>,
+    pub special_count: u32,
+    pub action_history: Vec<Action>,
 }

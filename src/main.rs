@@ -1,7 +1,12 @@
 extern crate env_logger;
 extern crate log;
 
-use takoyaki::engine::{board, card};
+use takoyaki::engine::{
+    board,
+    card::{self, CardPosition},
+    game::{Action, Rotation, State},
+    rule,
+};
 
 use clap::Parser;
 use log::*;
@@ -26,4 +31,22 @@ fn main() {
 
     let all_boards = board::load_boards(&args.board_dir);
     all_boards.iter().for_each(|c| info!("{}", c));
+
+    let mut state = State {
+        board: all_boards.get(0).unwrap().clone(),
+        turn: 0,
+    };
+    println!("Initial State {}", state);
+
+    let player_action = Action::Put(
+        all_cards.get(0).unwrap().clone(),
+        CardPosition {
+            x: 1,
+            y: 1,
+            rotation: Rotation::Up,
+            special: false,
+        },
+    );
+    let opponent_action = Action::Pass(all_cards.get(1).unwrap().clone());
+    rule::update(&mut state, player_action, opponent_action);
 }

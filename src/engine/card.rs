@@ -1,17 +1,30 @@
 use std::{
     collections::HashMap,
+    fmt::Display,
     fs::{self, File},
     io::{BufRead, BufReader},
     path::Path,
 };
 
-use super::game::Position;
+use super::game::Rotation;
 
 use log::*;
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CardCellPosition {
+    pub x: u32,
+    pub y: u32,
+}
+
+impl Display for CardCellPosition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{},{}]", self.x, self.y)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CardCell {
-    pub position: Position,
+    pub position: CardCellPosition,
     pub cell_type: CardCellType,
 }
 
@@ -42,26 +55,48 @@ pub struct Card {
     name: String,
     cell_count: u32,
     special_cost: u32,
-    cells: HashMap<Position, CardCell>,
+    cells: HashMap<Rotation, HashMap<CardCellPosition, CardCell>>,
+}
+
+impl Card {
+    pub fn get_id(&self) -> u32 {
+        self.id
+    }
+
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn get_special_cost(&self) -> u32 {
+        self.special_cost
+    }
+
+    pub fn get_cells(&self, rotation: Rotation) -> &HashMap<CardCellPosition, CardCell> {
+        self.cells.get(&rotation).unwrap()
+    }
+
+    pub fn calculate_width(&self, rotation: Rotation) -> u32 {
+        self.get_cells(rotation).keys().map(|p| p.x).max().unwrap() + 1
+    }
+
+    pub fn calculate_height(&self, rotation: Rotation) -> u32 {
+        self.get_cells(rotation).keys().map(|p| p.y).max().unwrap() + 1
+    }
 }
 
 impl std::fmt::Display for Card {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "{}: {}", self.id, self.name)?;
         writeln!(f, "cnt: {} cost: {}", self.cell_count, self.special_cost)?;
+        let rotation = Rotation::Up;
+        let width = self.calculate_width(rotation);
+        let height = self.calculate_height(rotation);
 
-        let width = self.cells.keys().map(|pos| pos.x).max().unwrap() + 1;
-        let height = self.cells.keys().map(|pos| pos.y).max().unwrap() + 1;
-        debug!("The displaying card width: {}, height: {}", width, height);
         for y in 0..height {
             for x in 0..width {
-                let pos = Position { x, y };
-                let ch = match self.cells.get(&pos) {
-                    Some(cell) => match cell.cell_type {
-                        CardCellType::None => ' ',
-                        CardCellType::Block => '=',
-                        CardCellType::Special => '*',
-                    },
+                let pos = CardCellPosition { x, y };
+                let ch = match self.get_cells(rotation).get(&pos) {
+                    Some(cell) => cell.cell_type.to_char(),
                     None => ' ',
                 };
                 write!(f, "{}", ch)?;
@@ -128,20 +163,85 @@ pub fn load_card(card_path: &str) -> Card {
 
     let cell_lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
     let cells = read_cells(&cell_lines);
-
     assert_eq!(cell_count, cells.len());
+
+    let width = cells.iter().map(|c| c.position.x).max().unwrap() + 1;
+    let height = cells.iter().map(|c| c.position.y).max().unwrap() + 1;
+    debug!("The parsed card's width: {}, height: {}", width, height);
+
+    let mut cells_variations: HashMap<Rotation, HashMap<CardCellPosition, CardCell>> =
+        HashMap::new();
+    for rot in [
+        Rotation::Up,
+        Rotation::Right,
+        Rotation::Down,
+        Rotation::Left,
+    ]
+    .iter()
+    {
+        let rot_cells = rotate_card_cells(*rot, width, height, &cells);
+        cells_variations.insert(*rot, convert_to_cell_map(rot_cells));
+    }
+    assert_eq!(4, cells_variations.len());
 
     Card {
         id: card_id,
         name,
         cell_count: cell_count as u32,
         special_cost,
-        cells,
+        cells: cells_variations,
     }
 }
 
-fn read_cells(lines: &[String]) -> HashMap<Position, CardCell> {
-    let mut card_cells: HashMap<Position, CardCell> = HashMap::new();
+fn rotate_card_cells(
+    rotation: Rotation,
+    width: u32,
+    height: u32,
+    cells: &[CardCell],
+) -> Vec<CardCell> {
+    cells
+        .iter()
+        .map(|&c| rotate_card_cell(rotation, width, height, c))
+        .collect()
+}
+
+fn convert_to_cell_map(cells: Vec<CardCell>) -> HashMap<CardCellPosition, CardCell> {
+    let mut cell_map: HashMap<CardCellPosition, CardCell> = HashMap::new();
+    for cell in cells {
+        let old_value = cell_map.insert(cell.position, cell);
+        if old_value.is_some() {
+            panic!("The card seems to have duplicated cell: {:?}", cell);
+        }
+    }
+    cell_map
+}
+
+fn rotate_card_cell(rotation: Rotation, width: u32, height: u32, cell: CardCell) -> CardCell {
+    let position = cell.position;
+    let rotated_pos = match rotation {
+        Rotation::Up => position,
+        Rotation::Right => CardCellPosition {
+            x: height - position.y - 1,
+            y: position.x,
+        },
+        Rotation::Down => CardCellPosition {
+            x: width - position.x - 1,
+            y: height - position.y - 1,
+        },
+        Rotation::Left => CardCellPosition {
+            x: position.y,
+            y: width - position.x - 1,
+        },
+    };
+
+    CardCell {
+        position: rotated_pos,
+        ..cell
+    }
+}
+
+fn read_cells(lines: &[String]) -> Vec<CardCell> {
+    let mut card_cells: Vec<CardCell> = vec![];
     for (y, line) in lines.iter().enumerate() {
         for (x, cell_type) in line
             .as_bytes()
@@ -157,19 +257,33 @@ fn read_cells(lines: &[String]) -> HashMap<Position, CardCell> {
             if cell_type.is_none() {
                 continue;
             }
-            let position = Position {
+            let position = CardCellPosition {
                 x: x as u32,
                 y: y as u32,
             };
-            card_cells.insert(
+            card_cells.push(CardCell {
                 position,
-                CardCell {
-                    position,
-                    cell_type,
-                },
-            );
+                cell_type,
+            });
         }
     }
 
     card_cells
+}
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CardPosition {
+    pub x: u32,
+    pub y: u32,
+    pub rotation: Rotation,
+    pub special: bool,
+}
+
+impl Display for CardPosition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[p: [{},{}], r: {}, s: {}]",
+            self.x, self.y, self.rotation, self.special
+        )
+    }
 }

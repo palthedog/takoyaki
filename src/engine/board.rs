@@ -1,5 +1,5 @@
 use std::{
-    fmt::Formatter,
+    fmt::{Display, Formatter},
     fs::{self, File},
     io::{BufRead, BufReader},
     path::Path,
@@ -48,6 +48,22 @@ impl BoardCell {
     pub fn is_filled(&self) -> bool {
         !matches!(self, BoardCell::None)
     }
+
+    pub fn is_wall(&self) -> bool {
+        matches!(self, BoardCell::Wall)
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct BoardPosition {
+    pub x: u32,
+    pub y: u32,
+}
+
+impl Display for BoardPosition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{},{}]", self.x, self.y)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -55,6 +71,17 @@ pub struct Board {
     id: u32,
     name: String,
     cells: Vec<Vec<BoardCell>>,
+}
+
+impl Board {
+    pub fn get_cell(&self, position: BoardPosition) -> BoardCell {
+        let x = position.x as usize;
+        let y = position.y as usize;
+        if y >= self.cells.len() || x >= self.cells.get(y).unwrap().len() {
+            return BoardCell::Wall;
+        }
+        self.cells[y][x]
+    }
 }
 
 impl std::fmt::Display for Board {
