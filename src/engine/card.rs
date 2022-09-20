@@ -1,50 +1,73 @@
 use std::{
+    collections::HashMap,
     fs::{self, File},
     io::{BufRead, BufReader},
     path::Path,
 };
 
+use super::game::Position;
+
 use log::*;
 
-#[derive(Clone, Copy, Debug)]
-pub enum CardCell {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CardCell {
+    pub position: Position,
+    pub cell_type: CardCellType,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CardCellType {
     None,
     Block,
     Special,
 }
 
-impl CardCell {
+impl CardCellType {
     fn to_char(self) -> char {
         match self {
-            CardCell::None => ' ',
-            CardCell::Block => '=',
-            CardCell::Special => '*',
+            CardCellType::None => ' ',
+            CardCellType::Block => '=',
+            CardCellType::Special => '*',
         }
     }
 
     pub fn is_none(&self) -> bool {
-        matches!(self, CardCell::None)
+        matches!(self, CardCellType::None)
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Card {
     id: u32,
     name: String,
     cell_count: u32,
     special_cost: u32,
-    cells: Vec<Vec<CardCell>>,
+    cells: HashMap<Position, CardCell>,
 }
 
 impl std::fmt::Display for Card {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "{}: {}", self.id, self.name)?;
         writeln!(f, "cnt: {} cost: {}", self.cell_count, self.special_cost)?;
-        self.cells.iter().for_each(|v| {
-            v.iter()
-                .for_each(|cell| write!(f, "{}", cell.to_char()).unwrap());
-            writeln!(f).unwrap();
-        });
+
+        let width = self.cells.keys().map(|pos| pos.x).max().unwrap() + 1;
+        let height = self.cells.keys().map(|pos| pos.y).max().unwrap() + 1;
+        debug!("The displaying card width: {}, height: {}", width, height);
+        for y in 0..height {
+            for x in 0..width {
+                let pos = Position { x, y };
+                let ch = match self.cells.get(&pos) {
+                    Some(cell) => match cell.cell_type {
+                        CardCellType::None => ' ',
+                        CardCellType::Block => '=',
+                        CardCellType::Special => '*',
+                    },
+                    None => ' ',
+                };
+                write!(f, "{}", ch)?;
+            }
+            writeln!(f)?;
+        }
         Ok(())
     }
 }
@@ -88,7 +111,7 @@ pub fn load_card(card_path: &str) -> Card {
     reader
         .read_line(&mut cell_count)
         .expect("The card data doesn't contain cell count");
-    let cell_count: u32 = cell_count.trim().parse().unwrap_or_else(|e| {
+    let cell_count: usize = cell_count.trim().parse().unwrap_or_else(|e| {
         panic!(
             "Failed to parse the cell count: {}\nGiven string: {}",
             e, cell_count
@@ -106,45 +129,47 @@ pub fn load_card(card_path: &str) -> Card {
     let cell_lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
     let cells = read_cells(&cell_lines);
 
-    assert_eq!(cell_count, count_cells(&cells));
+    assert_eq!(cell_count, cells.len());
 
     Card {
         id: card_id,
         name,
-        cell_count,
+        cell_count: cell_count as u32,
         special_cost,
         cells,
     }
 }
 
-fn count_cells(cells: &[Vec<CardCell>]) -> u32 {
-    cells
-        .iter()
-        .map(|line| line.iter().filter(|&c| !c.is_none()).count() as u32)
-        .sum()
-}
-
-fn read_cells(lines: &[String]) -> Vec<Vec<CardCell>> {
-    let mut card_cells: Vec<Vec<CardCell>> = vec![];
-    for line in lines {
-        let cell_line: Vec<CardCell> = line
+fn read_cells(lines: &[String]) -> HashMap<Position, CardCell> {
+    let mut card_cells: HashMap<Position, CardCell> = HashMap::new();
+    for (y, line) in lines.iter().enumerate() {
+        for (x, cell_type) in line
             .as_bytes()
             .iter()
             .map(|ch| match ch {
-                b' ' => CardCell::None,
-                b'=' => CardCell::Block,
-                b'*' => CardCell::Special,
+                b' ' => CardCellType::None,
+                b'=' => CardCellType::Block,
+                b'*' => CardCellType::Special,
                 _ => panic!("Found an invalid card cell: '{}'", char::from(*ch)),
             })
-            .collect();
-        card_cells.push(cell_line);
+            .enumerate()
+        {
+            if cell_type.is_none() {
+                continue;
+            }
+            let position = Position {
+                x: x as u32,
+                y: y as u32,
+            };
+            card_cells.insert(
+                position,
+                CardCell {
+                    position,
+                    cell_type,
+                },
+            );
+        }
     }
-
-    // Make all rows to have same size.
-    let width_max = card_cells.iter().map(|c| c.len()).max().unwrap();
-    card_cells
-        .iter_mut()
-        .for_each(|cell_line| cell_line.resize(width_max, CardCell::None));
 
     card_cells
 }
