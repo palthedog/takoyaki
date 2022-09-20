@@ -5,6 +5,8 @@ use std::{
     path::Path,
 };
 
+use log::*;
+
 #[derive(Clone, Copy, Debug)]
 pub enum BoardCell {
     None,
@@ -68,18 +70,23 @@ impl std::fmt::Display for Board {
 }
 
 pub fn load_boards(boards_dir: &str) -> Vec<Board> {
+    info!("Start loading board data from: {}", boards_dir);
+
     let mut boards: Vec<Board> = vec![];
     for entry in fs::read_dir(boards_dir).expect("Couldn't open the board dir") {
         let dir = entry.unwrap();
         let path = dir.path();
         let path = path.to_str().unwrap();
-        boards.push(load_board(path));
+
+        let board = load_board(path);
+        debug!("{}", board);
+        boards.push(board);
     }
     boards
 }
 
 pub fn load_board(board_path: &str) -> Board {
-    println!("loading {}", board_path);
+    debug!("loading {}", board_path);
 
     let path = Path::new(board_path);
     let board_id: u32 = path

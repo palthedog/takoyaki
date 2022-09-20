@@ -4,6 +4,8 @@ use std::{
     path::Path,
 };
 
+use log::*;
+
 #[derive(Clone, Copy, Debug)]
 pub enum CardCell {
     None,
@@ -48,18 +50,23 @@ impl std::fmt::Display for Card {
 }
 
 pub fn load_cards(cards_dir: &str) -> Vec<Card> {
+    info!("Start loading card data from: {}", cards_dir);
+
     let mut cards: Vec<Card> = vec![];
     for entry in fs::read_dir(cards_dir).expect("Couldn't open the card dir") {
         let dir = entry.unwrap();
         let path = dir.path();
         let path = path.to_str().unwrap();
-        cards.push(load_card(path));
+        let card = load_card(path);
+        debug!("{}", card);
+        cards.push(card);
     }
     cards
 }
 
 pub fn load_card(card_path: &str) -> Card {
-    println!("loading {}", card_path);
+    debug!("loading {}", card_path);
+
     let path = Path::new(card_path);
     let card_id: u32 = path
         .file_stem()

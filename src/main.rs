@@ -1,3 +1,6 @@
+extern crate env_logger;
+extern crate log;
+
 use takoyaki::engine::{board, card};
 
 use clap::Parser;
@@ -13,6 +16,8 @@ struct Args {
 }
 
 fn main() {
+    env_logger::init();
+
     let args = Args::parse();
     let all_cards = card::load_cards(&args.card_dir);
 
