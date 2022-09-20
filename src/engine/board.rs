@@ -131,13 +131,12 @@ pub fn load_board(board_path: &str) -> Board {
     let name = String::from(name.trim());
 
     let board_lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
-    let cells = read_cells(&board_lines);
+    load_board_from_lines(board_id, name, &board_lines)
+}
 
-    Board {
-        id: board_id,
-        name,
-        cells,
-    }
+pub fn load_board_from_lines(id: u32, name: String, lines: &[String]) -> Board {
+    let cells = read_cells(&lines);
+    Board { id, name, cells }
 }
 
 fn read_cells(lines: &[String]) -> Vec<Vec<BoardCell>> {

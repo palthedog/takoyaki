@@ -146,7 +146,7 @@ pub fn load_card(card_path: &str) -> Card {
     reader
         .read_line(&mut cell_count)
         .expect("The card data doesn't contain cell count");
-    let cell_count: usize = cell_count.trim().parse().unwrap_or_else(|e| {
+    let cell_count: u32 = cell_count.trim().parse().unwrap_or_else(|e| {
         panic!(
             "Failed to parse the cell count: {}\nGiven string: {}",
             e, cell_count
@@ -162,8 +162,18 @@ pub fn load_card(card_path: &str) -> Card {
         .expect("Failed to parse the special cost");
 
     let cell_lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
-    let cells = read_cells(&cell_lines);
-    assert_eq!(cell_count, cells.len());
+    load_card_from_lines(card_id, name, cell_count, special_cost, &cell_lines)
+}
+
+pub fn load_card_from_lines(
+    id: u32,
+    name: String,
+    cell_count: u32,
+    special_cost: u32,
+    lines: &[String],
+) -> Card {
+    let cells = read_cells(lines);
+    assert_eq!(cell_count, cells.len() as u32);
 
     let width = cells.iter().map(|c| c.position.x).max().unwrap() + 1;
     let height = cells.iter().map(|c| c.position.y).max().unwrap() + 1;
@@ -185,7 +195,7 @@ pub fn load_card(card_path: &str) -> Card {
     assert_eq!(4, cells_variations.len());
 
     Card {
-        id: card_id,
+        id,
         name,
         cell_count: cell_count as u32,
         special_cost,
