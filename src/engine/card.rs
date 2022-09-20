@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::{self, BufRead},
+    io::{BufRead, BufReader},
     path::Path,
 };
 
@@ -12,7 +12,7 @@ pub enum CardCell {
 }
 
 impl CardCell {
-    fn to_char(&self) -> char {
+    fn to_char(self) -> char {
         match self {
             CardCell::None => ' ',
             CardCell::Block => '=',
@@ -21,30 +21,27 @@ impl CardCell {
     }
 
     pub fn is_none(&self) -> bool {
-        match self {
-            CardCell::None => true,
-            _ => false,
-        }
+        matches!(self, CardCell::None)
     }
 }
 
 #[derive(Debug)]
 pub struct Card {
-    pub id: u32,
-    pub name: String,
-    pub cell_count: u32,
-    pub special_cost: u32,
-    pub cells: Vec<Vec<CardCell>>,
+    id: u32,
+    name: String,
+    cell_count: u32,
+    special_cost: u32,
+    cells: Vec<Vec<CardCell>>,
 }
 
 impl std::fmt::Display for Card {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}: {}\n", self.id, self.name)?;
-        write!(f, "cnt: {} cost: {}\n", self.cell_count, self.special_cost)?;
+        writeln!(f, "{}: {}", self.id, self.name)?;
+        writeln!(f, "cnt: {} cost: {}", self.cell_count, self.special_cost)?;
         self.cells.iter().for_each(|v| {
             v.iter()
                 .for_each(|cell| write!(f, "{}", cell.to_char()).unwrap());
-            write!(f, "\n").unwrap();
+            writeln!(f).unwrap();
         });
         Ok(())
     }
@@ -72,38 +69,48 @@ pub fn load_card(card_path: &str) -> Card {
         .parse::<u32>()
         .unwrap_or_else(|_| panic!("Card file name should be a number but {:?}", path));
     let file = File::open(card_path).unwrap_or_else(|_| panic!("Failed to open: {}", card_path));
-
-    let lines = BufRead::lines(io::BufReader::new(file));
-    let lines: Vec<String> = lines
-        .map(|line| match line {
-            Ok(line) => line,
-            Err(e) => panic!("Failed to read lines: {}", e),
-        })
-        .collect();
-    println!("lines: {:?}", lines);
-
+    let mut reader = BufReader::new(file);
     // Split the data
-    let name = &lines[0];
-    let cell_count: u32 = lines[1]
-        .parse()
-        .expect("Failed to parse the number of cells.");
-    let special_cost: u32 = lines[2].parse().expect("Failed to parse the special cost");
-    let (_, cell_lines) = (&lines[..]).split_at(3);
+    let mut name: String = String::new();
+    reader
+        .read_line(&mut name)
+        .expect("The card data doesn't contain card name");
+    let name = String::from(name.trim());
 
+    let mut cell_count: String = String::new();
+    reader
+        .read_line(&mut cell_count)
+        .expect("The card data doesn't contain cell count");
+    let cell_count: u32 = cell_count.trim().parse().unwrap_or_else(|e| {
+        panic!(
+            "Failed to parse the cell count: {}\nGiven string: {}",
+            e, cell_count
+        )
+    });
+    let mut special_cost: String = String::new();
+    reader
+        .read_line(&mut special_cost)
+        .expect("Failed to read cost info.");
+    let special_cost: u32 = special_cost
+        .trim()
+        .parse()
+        .expect("Failed to parse the special cost");
+
+    let cell_lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
     let cells = read_cells(&cell_lines);
 
     assert_eq!(cell_count, count_cells(&cells));
 
     Card {
         id: card_id,
-        name: String::from(name),
+        name,
         cell_count,
         special_cost,
         cells,
     }
 }
 
-fn count_cells(cells: &Vec<Vec<CardCell>>) -> u32 {
+fn count_cells(cells: &[Vec<CardCell>]) -> u32 {
     cells
         .iter()
         .map(|line| line.iter().filter(|&c| !c.is_none()).count() as u32)
