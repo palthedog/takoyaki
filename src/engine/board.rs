@@ -8,13 +8,17 @@ use std::{
 use log::*;
 
 #[derive(Clone, Copy, Debug)]
+pub enum PlayerId {
+    Player,
+    Opponent,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum BoardCell {
     None,
     Wall,
-    Player,
-    PlayerSpecial,
-    Opponent,
-    OpponentSpecial,
+    Ink(PlayerId),
+    Special(PlayerId),
 }
 
 impl BoardCell {
@@ -22,10 +26,10 @@ impl BoardCell {
         match self {
             BoardCell::None => '.',
             BoardCell::Wall => '#',
-            BoardCell::Player => 'p',
-            BoardCell::PlayerSpecial => 'P',
-            BoardCell::Opponent => 'o',
-            BoardCell::OpponentSpecial => 'O',
+            BoardCell::Ink(PlayerId::Player) => 'p',
+            BoardCell::Special(PlayerId::Player) => 'P',
+            BoardCell::Ink(PlayerId::Opponent) => 'o',
+            BoardCell::Special(PlayerId::Opponent) => 'O',
         }
     }
 
@@ -33,10 +37,10 @@ impl BoardCell {
         match ch {
             '.' => Ok(BoardCell::None),
             ' ' | '#' => Ok(BoardCell::Wall),
-            'p' => Ok(BoardCell::Player),
-            'P' => Ok(BoardCell::PlayerSpecial),
-            'o' => Ok(BoardCell::Opponent),
-            'O' => Ok(BoardCell::OpponentSpecial),
+            'p' => Ok(BoardCell::Ink(PlayerId::Player)),
+            'P' => Ok(BoardCell::Special(PlayerId::Player)),
+            'o' => Ok(BoardCell::Ink(PlayerId::Opponent)),
+            'O' => Ok(BoardCell::Special(PlayerId::Opponent)),
             _ => Err(format!("Invalid character for a board cell: '{}'", ch)),
         }
     }

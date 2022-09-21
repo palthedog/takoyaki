@@ -3,26 +3,33 @@ use log::trace;
 
 use super::board::Board;
 use super::board::BoardPosition;
+use super::board::PlayerId;
 use super::card::Card;
 use super::card::CardPosition;
 use super::game::Action;
 use super::game::State;
 
-pub fn is_valid_action(state: &State, action: Action) -> bool {
+pub fn is_valid_action(state: &State, player_id: PlayerId, action: Action) -> bool {
     match action {
         Action::Pass(_) => true,
-        Action::Put(card, pos) => check_action_put(state, &card, &pos),
+        Action::Put(card, pos) => check_action_put(state, player_id, &card, &pos),
     }
 }
 
-fn check_action_put(state: &State, card: &Card, position: &CardPosition) -> bool {
-    if has_conflict_with_wall(&state.board, position, card) {
+fn check_action_put(
+    state: &State,
+    _player_id: PlayerId,
+    card: &Card,
+    position: &CardPosition,
+) -> bool {
+    if has_conflict(&state.board, card, position) {
         return false;
     }
     true
 }
 
-fn has_conflict_with_wall(board: &Board, card_position: &CardPosition, card: &Card) -> bool {
+fn has_conflict(board: &Board, card: &Card, card_position: &CardPosition) -> bool {
+    let special = card_position.special;
     let cells = card.get_cells(card_position.rotation);
     trace!("card pos: [{},{}]", card_position.x, card_position.y);
     for cell_pos in cells.keys() {
@@ -33,9 +40,16 @@ fn has_conflict_with_wall(board: &Board, card_position: &CardPosition, card: &Ca
         };
         trace!("  board pos: {}", board_pos);
         let board_cell = board.get_cell(board_pos);
-        if board_cell.is_wall() {
+        let conflict = match (board_cell, special) {
+            (crate::engine::board::BoardCell::None, _) => false,
+            (crate::engine::board::BoardCell::Wall, _) => true,
+            (crate::engine::board::BoardCell::Ink(_), true) => false,
+            (crate::engine::board::BoardCell::Ink(_), false) => true,
+            (crate::engine::board::BoardCell::Special(_), _) => true,
+        };
+        if conflict {
             trace!(
-                "A cell has conflict with a wall at: {:?}. cell type: {:?}",
+                "A cell has conflict at: {:?}. cell type: {:?}",
                 board_pos,
                 board_cell
             );
@@ -48,11 +62,11 @@ fn has_conflict_with_wall(board: &Board, card_position: &CardPosition, card: &Ca
 pub fn update(state: &mut State, player_action: Action, opponent_action: Action) -> bool {
     debug!(
         "Player action is valid? {}",
-        is_valid_action(state, player_action)
+        is_valid_action(state, PlayerId::Player, player_action)
     );
     debug!(
         "Opponent action is valid? {}",
-        is_valid_action(state, opponent_action)
+        is_valid_action(state, PlayerId::Opponent, opponent_action)
     );
     false
 }
@@ -86,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn test_conflict_with_wall() {
+    fn test_conflict() {
         init();
 
         #[rustfmt::skip]
@@ -98,52 +112,52 @@ mod tests {
         let card = test_card(&["==="]);
 
         // NO conflict
-        assert!(!has_conflict_with_wall(
+        assert!(!has_conflict(
             &board,
+            &card,
             &CardPosition {
                 x: 1,
                 y: 1,
                 rotation: Rotation::Up,
                 special: false
             },
-            &card
         ));
 
         // DO conflict
-        assert!(has_conflict_with_wall(
+        assert!(has_conflict(
             &board,
+            &card,
             &CardPosition {
                 x: 1,
                 y: 0,
                 rotation: Rotation::Up,
                 special: false
             },
-            &card
         ));
-        assert!(has_conflict_with_wall(
+        assert!(has_conflict(
             &board,
+            &card,
             &CardPosition {
                 x: 1,
                 y: 2,
                 rotation: Rotation::Up,
                 special: false
             },
-            &card
         ));
-        assert!(has_conflict_with_wall(
+        assert!(has_conflict(
             &board,
+            &card,
             &CardPosition {
                 x: 0,
                 y: 1,
                 rotation: Rotation::Up,
                 special: false
             },
-            &card
         ));
     }
 
     #[test]
-    fn test_conflict_with_wall_rot() {
+    fn test_conflict_with_rotation() {
         init();
 
         #[rustfmt::skip]
@@ -174,50 +188,50 @@ mod tests {
         ]);
 
         // NO conflict
-        assert!(!has_conflict_with_wall(
+        assert!(!has_conflict(
             &board,
+            &card,
             &CardPosition {
                 x: 1,
                 y: 1,
                 rotation: Rotation::Up,
                 special: false
             },
-            &card
         ));
-        assert!(!has_conflict_with_wall(
+        assert!(!has_conflict(
             &board,
+            &card,
             &CardPosition {
                 x: 1,
                 y: 5,
                 rotation: Rotation::Right,
                 special: false
             },
-            &card
         ));
-        assert!(!has_conflict_with_wall(
+        assert!(!has_conflict(
             &board,
+            &card,
             &CardPosition {
                 x: 1,
                 y: 9,
                 rotation: Rotation::Down,
                 special: false
             },
-            &card
         ));
-        assert!(!has_conflict_with_wall(
+        assert!(!has_conflict(
             &board,
+            &card,
             &CardPosition {
                 x: 1,
                 y: 13,
                 rotation: Rotation::Left,
                 special: false
             },
-            &card
         ));
     }
 
     #[test]
-    fn test_conflict_with_wall_out_side_of_board() {
+    fn test_conflict_out_side_of_board() {
         init();
 
         #[rustfmt::skip]
@@ -233,25 +247,145 @@ mod tests {
             "=== ="
         ]);
 
-        assert!(has_conflict_with_wall(
+        assert!(has_conflict(
             &board,
+            &card,
             &CardPosition {
                 x: 1,
                 y: 1,
                 rotation: Rotation::Up,
                 special: false
             },
-            &card
         ));
-        assert!(has_conflict_with_wall(
+        assert!(has_conflict(
             &board,
+            &card,
             &CardPosition {
                 x: 2,
                 y: 1,
                 rotation: Rotation::Right,
                 special: false
             },
-            &card
+        ));
+    }
+
+    #[test]
+    fn test_conflict_with_ink() {
+        init();
+
+        #[rustfmt::skip]
+        let board = test_board(&[
+            "#####",
+            "##o##",
+            "#p..#",
+            "##.##",
+            "#####"
+        ]);
+        #[rustfmt::skip]
+        let card = test_card(&[
+            "==="
+        ]);
+
+        assert!(has_conflict(
+            &board,
+            &card,
+            &CardPosition {
+                x: 1,
+                y: 2,
+                rotation: Rotation::Up,
+                special: false
+            },
+        ));
+        assert!(!has_conflict(
+            &board,
+            &card,
+            &CardPosition {
+                x: 1,
+                y: 2,
+                rotation: Rotation::Up,
+                special: true // special is ON
+            },
+        ));
+
+        assert!(has_conflict(
+            &board,
+            &card,
+            &CardPosition {
+                x: 2,
+                y: 1,
+                rotation: Rotation::Right,
+                special: false
+            },
+        ));
+        assert!(!has_conflict(
+            &board,
+            &card,
+            &CardPosition {
+                x: 2,
+                y: 1,
+                rotation: Rotation::Right,
+                special: true // special is ON
+            },
+        ));
+    }
+
+    #[test]
+    fn test_conflict_with_special() {
+        init();
+
+        #[rustfmt::skip]
+        let board = test_board(&[
+            "#####",
+            "##O##",
+            "#P..#",
+            "##.##",
+            "#####"
+        ]);
+        #[rustfmt::skip]
+        let card = test_card(&[
+            "==="
+        ]);
+
+        assert!(has_conflict(
+            &board,
+            &card,
+            &CardPosition {
+                x: 1,
+                y: 2,
+                rotation: Rotation::Up,
+                special: false
+            },
+        ));
+        assert!(has_conflict(
+            &board,
+            &card,
+            &CardPosition {
+                x: 1,
+                y: 2,
+                rotation: Rotation::Up,
+                special: true // special is ON
+            },
+        ));
+
+        assert!(has_conflict(
+            &board,
+            &card,
+            &CardPosition {
+                x: 2,
+                y: 1,
+                rotation: Rotation::Right,
+                special: false
+            },
+        ));
+        assert!(has_conflict(
+            &board,
+            &card,
+            &CardPosition {
+                x: 2,
+                y: 1,
+                rotation: Rotation::Right,
+                special: true // special is ON
+            },
         ));
     }
 }
