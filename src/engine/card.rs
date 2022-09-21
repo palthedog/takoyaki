@@ -12,8 +12,8 @@ use log::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CardCellPosition {
-    pub x: u32,
-    pub y: u32,
+    pub x: i32,
+    pub y: i32,
 }
 
 impl Display for CardCellPosition {
@@ -31,7 +31,7 @@ pub struct CardCell {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CardCellType {
     None,
-    Block,
+    Ink,
     Special,
 }
 
@@ -39,7 +39,7 @@ impl CardCellType {
     fn to_char(self) -> char {
         match self {
             CardCellType::None => ' ',
-            CardCellType::Block => '=',
+            CardCellType::Ink => '=',
             CardCellType::Special => '*',
         }
     }
@@ -75,11 +75,11 @@ impl Card {
         self.cells.get(&rotation).unwrap()
     }
 
-    pub fn calculate_width(&self, rotation: Rotation) -> u32 {
+    pub fn calculate_width(&self, rotation: Rotation) -> i32 {
         self.get_cells(rotation).keys().map(|p| p.x).max().unwrap() + 1
     }
 
-    pub fn calculate_height(&self, rotation: Rotation) -> u32 {
+    pub fn calculate_height(&self, rotation: Rotation) -> i32 {
         self.get_cells(rotation).keys().map(|p| p.y).max().unwrap() + 1
     }
 }
@@ -205,8 +205,8 @@ pub fn load_card_from_lines(
 
 fn rotate_card_cells(
     rotation: Rotation,
-    width: u32,
-    height: u32,
+    width: i32,
+    height: i32,
     cells: &[CardCell],
 ) -> Vec<CardCell> {
     cells
@@ -226,7 +226,7 @@ fn convert_to_cell_map(cells: Vec<CardCell>) -> HashMap<CardCellPosition, CardCe
     cell_map
 }
 
-fn rotate_card_cell(rotation: Rotation, width: u32, height: u32, cell: CardCell) -> CardCell {
+fn rotate_card_cell(rotation: Rotation, width: i32, height: i32, cell: CardCell) -> CardCell {
     let position = cell.position;
     let rotated_pos = match rotation {
         Rotation::Up => position,
@@ -258,7 +258,7 @@ fn read_cells(lines: &[String]) -> Vec<CardCell> {
             .iter()
             .map(|ch| match ch {
                 b' ' => CardCellType::None,
-                b'=' => CardCellType::Block,
+                b'=' => CardCellType::Ink,
                 b'*' => CardCellType::Special,
                 _ => panic!("Found an invalid card cell: '{}'", char::from(*ch)),
             })
@@ -268,8 +268,8 @@ fn read_cells(lines: &[String]) -> Vec<CardCell> {
                 continue;
             }
             let position = CardCellPosition {
-                x: x as u32,
-                y: y as u32,
+                x: x as i32,
+                y: y as i32,
             };
             card_cells.push(CardCell {
                 position,
@@ -282,8 +282,8 @@ fn read_cells(lines: &[String]) -> Vec<CardCell> {
 }
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CardPosition {
-    pub x: u32,
-    pub y: u32,
+    pub x: i32,
+    pub y: i32,
     pub rotation: Rotation,
     pub special: bool,
 }

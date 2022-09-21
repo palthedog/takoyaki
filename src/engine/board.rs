@@ -7,7 +7,7 @@ use std::{
 
 use log::*;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlayerId {
     Player,
     Opponent,
@@ -60,8 +60,8 @@ impl BoardCell {
 
 #[derive(Debug, Copy, Clone)]
 pub struct BoardPosition {
-    pub x: u32,
-    pub y: u32,
+    pub x: i32,
+    pub y: i32,
 }
 
 impl Display for BoardPosition {

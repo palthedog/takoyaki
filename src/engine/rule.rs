@@ -18,11 +18,15 @@ pub fn is_valid_action(state: &State, player_id: PlayerId, action: Action) -> bo
 
 fn check_action_put(
     state: &State,
-    _player_id: PlayerId,
+    player_id: PlayerId,
     card: &Card,
     position: &CardPosition,
 ) -> bool {
     if has_conflict(&state.board, card, position) {
+        return false;
+    }
+
+    if !has_touching_point(&state.board, player_id, card, position) {
         return false;
     }
     true
@@ -54,6 +58,42 @@ fn has_conflict(board: &Board, card: &Card, card_position: &CardPosition) -> boo
                 board_cell
             );
             return true;
+        }
+    }
+    false
+}
+
+fn has_touching_point(
+    board: &Board,
+    player_id: PlayerId,
+    card: &Card,
+    card_position: &CardPosition,
+) -> bool {
+    #[rustfmt::skip]
+    const AROUND_DIFF: [(i32, i32); 8] = [
+        (-1, -1),  (0, -1),  (1, -1),
+        (-1,  0),/*(0,  0),*/(1,  0),
+        (-1,  1),  (0,  1),  (1,  1),
+    ];
+    let special = card_position.special;
+    let cells = card.get_cells(card_position.rotation);
+    for cell_pos in cells.keys() {
+        for diff in AROUND_DIFF {
+            let board_pos = BoardPosition {
+                x: card_position.x + cell_pos.x + diff.0,
+                y: card_position.y + cell_pos.y + diff.1,
+            };
+            trace!("  board pos: {}", board_pos);
+
+            let board_cell = board.get_cell(board_pos);
+            let touching = match (board_cell, special) {
+                (crate::engine::board::BoardCell::Ink(pid), false) => player_id == pid,
+                (crate::engine::board::BoardCell::Special(pid), _) => player_id == pid,
+                _ => false,
+            };
+            if touching {
+                return true;
+            }
         }
     }
     false
@@ -385,6 +425,79 @@ mod tests {
                 y: 1,
                 rotation: Rotation::Right,
                 special: true // special is ON
+            },
+        ));
+    }
+
+    #[test]
+    fn test_touching_with_ink() {
+        init();
+
+        #[rustfmt::skip]
+        let board = test_board(&[
+            "#####",
+            "#p..#",
+            "#...#",
+            "#..o#",
+            "#####"
+        ]);
+        let card = test_card(&["="]);
+
+        assert!(has_touching_point(
+            &board,
+            PlayerId::Player,
+            &card,
+            &CardPosition {
+                x: 2,
+                y: 1,
+                rotation: Rotation::Up,
+                special: false
+            },
+        ));
+        assert!(has_touching_point(
+            &board,
+            PlayerId::Player,
+            &card,
+            &CardPosition {
+                x: 1,
+                y: 2,
+                rotation: Rotation::Up,
+                special: false
+            },
+        ));
+        assert!(has_touching_point(
+            &board,
+            PlayerId::Player,
+            &card,
+            &CardPosition {
+                x: 2,
+                y: 2,
+                rotation: Rotation::Up,
+                special: false
+            },
+        ));
+
+        // Opponent's ink shouldn't work
+        assert!(!has_touching_point(
+            &board,
+            PlayerId::Player,
+            &card,
+            &CardPosition {
+                x: 3,
+                y: 2,
+                rotation: Rotation::Up,
+                special: false
+            },
+        ));
+        assert!(!has_touching_point(
+            &board,
+            PlayerId::Player,
+            &card,
+            &CardPosition {
+                x: 2,
+                y: 3,
+                rotation: Rotation::Up,
+                special: false
             },
         ));
     }
