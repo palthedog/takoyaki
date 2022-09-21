@@ -12,7 +12,7 @@ use super::game::State;
 pub fn is_valid_action(state: &State, player_id: PlayerId, action: Action) -> bool {
     match action {
         Action::Pass(_) => true,
-        Action::Put(card, pos) => check_action_put(state, player_id, &card, &pos),
+        Action::Put(card, pos) => check_action_put(state, player_id, card, &pos),
     }
 }
 

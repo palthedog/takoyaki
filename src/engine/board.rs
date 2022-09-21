@@ -7,7 +7,7 @@ use std::{
 
 use log::*;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerId {
     Player,
     Opponent,
@@ -139,7 +139,7 @@ pub fn load_board(board_path: &str) -> Board {
 }
 
 pub fn load_board_from_lines(id: u32, name: String, lines: &[String]) -> Board {
-    let cells = read_cells(&lines);
+    let cells = read_cells(lines);
     Board { id, name, cells }
 }
 
