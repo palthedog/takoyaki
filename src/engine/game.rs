@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use super::card::{Card, CardPosition};
 
+pub const HAND_SIZE: usize = 4;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerId {
     Player,

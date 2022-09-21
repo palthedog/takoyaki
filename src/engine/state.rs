@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
-use log::debug;
-use log::trace;
+use log::*;
 
 use super::{
     board::{Board, BoardPosition},
@@ -18,6 +17,9 @@ pub struct PlayerState<'a> {
     action_history: Vec<Action<'a>>,
     hands: Vec<&'a Card>,
     deck: Vec<&'a Card>,
+
+    // Players can change their hand once at the first turn
+    redealed: bool,
 }
 
 impl<'a> PlayerState<'a> {
@@ -27,6 +29,7 @@ impl<'a> PlayerState<'a> {
             action_history: vec![],
             hands: vec![],
             deck: deck.to_vec(),
+            redealed: false,
         }
     }
 
@@ -37,7 +40,12 @@ impl<'a> PlayerState<'a> {
             action_history: vec![],
             hands: hand.to_vec(),
             deck: vec![],
+            redealed: false,
         }
+    }
+
+    pub fn get_hands(&self) -> &[&Card] {
+        &self.hands
     }
 }
 
@@ -78,19 +86,26 @@ impl<'a> Display for State<'a> {
     }
 }
 
-pub fn update(state: &mut State, player_action: Action, opponent_action: Action) -> bool {
-    debug!(
-        "Player action is valid? {}",
-        is_valid_action(state, PlayerId::Player, player_action)
-    );
-    debug!(
-        "Opponent action is valid? {}",
-        is_valid_action(state, PlayerId::Opponent, opponent_action)
-    );
+pub fn update(state: &mut State, player_action: &Action, opponent_action: &Action) -> bool {
+    if !is_valid_action(state, PlayerId::Player, &player_action) {
+        error!(
+            "Player's action is invalid: state: {:?}\n action: {:?}",
+            state, player_action
+        );
+        panic!();
+    }
+    if !is_valid_action(state, PlayerId::Opponent, &opponent_action) {
+        error!(
+            "Opponent's action is invalid: state: {:?}\n action: {:?}",
+            state, opponent_action
+        );
+        panic!();
+    }
+
     false
 }
 
-pub fn is_valid_action(state: &State, player_id: PlayerId, action: Action) -> bool {
+pub fn is_valid_action(state: &State, player_id: PlayerId, action: &Action) -> bool {
     match action {
         Action::Pass(_) => true,
         Action::Put(card, pos) => check_action_put(state, player_id, card, &pos),
@@ -234,7 +249,7 @@ mod tests {
         assert!(is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 1,
@@ -249,7 +264,7 @@ mod tests {
         assert!(!is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 5,
@@ -264,7 +279,7 @@ mod tests {
         assert!(!is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 2,
@@ -291,7 +306,7 @@ mod tests {
         assert!(!is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 1,
@@ -319,7 +334,7 @@ mod tests {
         assert!(!is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 1,
@@ -334,7 +349,7 @@ mod tests {
         assert!(is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 3,
@@ -370,7 +385,7 @@ mod tests {
         assert!(!is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 2,
@@ -383,7 +398,7 @@ mod tests {
         assert!(is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 2,
@@ -396,7 +411,7 @@ mod tests {
         assert!(!is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 2,
@@ -409,7 +424,7 @@ mod tests {
         assert!(!is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 2,
@@ -443,7 +458,7 @@ mod tests {
         assert!(!is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 1,
@@ -467,7 +482,7 @@ mod tests {
         assert!(is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 1,
@@ -491,7 +506,7 @@ mod tests {
         assert!(is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 1,
@@ -504,7 +519,7 @@ mod tests {
         assert!(!is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 1,
@@ -528,7 +543,7 @@ mod tests {
         assert!(!is_valid_action(
             &new_test_state(board.clone(), &[&card], &[&card]),
             PlayerId::Player,
-            Action::Put(
+            &Action::Put(
                 &card,
                 CardPosition {
                     x: 1,
