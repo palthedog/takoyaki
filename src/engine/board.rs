@@ -13,7 +13,7 @@ pub enum PlayerId {
     Opponent,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoardCell {
     None,
     Wall,
@@ -46,15 +46,15 @@ impl BoardCell {
     }
 
     pub fn is_none(&self) -> bool {
-        matches!(self, BoardCell::None)
+        *self == BoardCell::None
     }
 
     pub fn is_filled(&self) -> bool {
-        !matches!(self, BoardCell::None)
+        !self.is_none()
     }
 
     pub fn is_wall(&self) -> bool {
-        matches!(self, BoardCell::Wall)
+        *self == BoardCell::Wall
     }
 }
 
