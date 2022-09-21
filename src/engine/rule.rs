@@ -1,13 +1,94 @@
+use std::fmt::Display;
+
 use log::debug;
 use log::trace;
 
-use super::board::Board;
-use super::board::BoardPosition;
-use super::card::Card;
-use super::card::CardPosition;
-use super::game::Action;
-use super::game::PlayerId;
-use super::game::State;
+use super::{
+    board::{Board, BoardPosition},
+    card::Card,
+};
+use super::{
+    card::CardPosition,
+    game::{Action, PlayerId},
+};
+
+#[derive(Debug, Clone)]
+pub struct PlayerState<'a> {
+    special_count: u32,
+    action_history: Vec<Action<'a>>,
+    hands: Vec<&'a Card>,
+    deck: Vec<&'a Card>,
+}
+
+impl<'a> PlayerState<'a> {
+    pub fn new(deck: &[&'a Card]) -> PlayerState<'a> {
+        PlayerState {
+            special_count: 0,
+            action_history: vec![],
+            hands: vec![],
+            deck: deck.to_vec(),
+        }
+    }
+
+    #[cfg(test)]
+    fn new_with_hand_for_testing(hand: &[&'a Card]) -> PlayerState<'a> {
+        PlayerState {
+            special_count: 0,
+            action_history: vec![],
+            hands: hand.to_vec(),
+            deck: vec![],
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct State<'a> {
+    board: Board,
+    turn: u32,
+    player_state: PlayerState<'a>,
+    opponent_state: PlayerState<'a>,
+}
+
+impl<'a> State<'a> {
+    pub fn new(
+        board: Board,
+        turn: u32,
+        player_state: PlayerState<'a>,
+        opponent_state: PlayerState<'a>,
+    ) -> State<'a> {
+        State {
+            board,
+            turn,
+            player_state,
+            opponent_state,
+        }
+    }
+
+    fn get_player_state(&mut self, player_id: PlayerId) -> &mut PlayerState<'a> {
+        match player_id {
+            PlayerId::Player => &mut self.player_state,
+            PlayerId::Opponent => &mut self.opponent_state,
+        }
+    }
+}
+
+impl<'a> Display for State<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "turn: {}\n{}", self.turn, self.board)
+    }
+}
+
+pub fn update(state: &mut State, player_action: Action, opponent_action: Action) -> bool {
+    debug!(
+        "Player action is valid? {}",
+        is_valid_action(state, PlayerId::Player, player_action)
+    );
+    debug!(
+        "Opponent action is valid? {}",
+        is_valid_action(state, PlayerId::Opponent, opponent_action)
+    );
+    false
+}
 
 pub fn is_valid_action(state: &State, player_id: PlayerId, action: Action) -> bool {
     match action {
@@ -99,25 +180,10 @@ fn has_touching_point(
     false
 }
 
-pub fn update(state: &mut State, player_action: Action, opponent_action: Action) -> bool {
-    debug!(
-        "Player action is valid? {}",
-        is_valid_action(state, PlayerId::Player, player_action)
-    );
-    debug!(
-        "Opponent action is valid? {}",
-        is_valid_action(state, PlayerId::Opponent, opponent_action)
-    );
-    false
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::{
-        board, card,
-        game::{PlayerState, Rotation},
-    };
+    use crate::engine::{board, card, game::Rotation};
 
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();

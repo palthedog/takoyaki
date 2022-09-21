@@ -4,8 +4,8 @@ extern crate log;
 use takoyaki::engine::{
     board,
     card::{self, CardPosition},
-    game::{Action, PlayerState, Rotation, State},
-    rule,
+    game::{Action, Rotation},
+    rule::{self, PlayerState, State},
 };
 
 use clap::Parser;
