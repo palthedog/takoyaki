@@ -120,12 +120,12 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    fn test_board(lines: &[&str]) -> crate::engine::board::Board {
+    fn new_test_board(lines: &[&str]) -> crate::engine::board::Board {
         let lines: Vec<String> = lines.iter().map(|s| String::from(*s)).collect();
         board::load_board_from_lines(42, String::from("test board"), &lines)
     }
 
-    fn test_card(lines: &[&str]) -> crate::engine::card::Card {
+    fn new_test_card(lines: &[&str]) -> crate::engine::card::Card {
         let lines: Vec<String> = lines.iter().map(|s| String::from(*s)).collect();
         let cell_cnt: u32 = lines
             .iter()
@@ -144,361 +144,365 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let board = test_board(&[
-            "#####",
-            "#...#",
-            "#####"
+        let board = new_test_board(&[
+            "########",
+            "#...P..#",
+            "########"
         ]);
-        let card = test_card(&["==="]);
+        let card = new_test_card(&["==="]);
 
         // NO conflict
-        assert!(!has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 1,
-                rotation: Rotation::Up,
-                special: false
+        assert!(is_valid_action(
+            &State {
+                board: board.clone(),
+                turn: 0
             },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false
+                }
+            )
         ));
 
-        // DO conflict
-        assert!(has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 0,
-                rotation: Rotation::Up,
-                special: false
+        // DO conflict with wall
+        assert!(!is_valid_action(
+            &State {
+                board: board.clone(),
+                turn: 0
             },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 5,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false
+                }
+            )
         ));
-        assert!(has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 2,
-                rotation: Rotation::Up,
-                special: false
+
+        // DO conflict with ink
+        assert!(!is_valid_action(
+            &State {
+                board: board.clone(),
+                turn: 0
             },
-        ));
-        assert!(has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 0,
-                y: 1,
-                rotation: Rotation::Up,
-                special: false
-            },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 2,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false
+                }
+            )
         ));
     }
 
     #[test]
-    fn test_conflict_with_rotation() {
+    fn test_conflict_with_opponents_ink() {
         init();
 
         #[rustfmt::skip]
-        let board = test_board(&[
-            "#####",
-            "#...#",
-            "###.#",
-            "###.#",
-            "#####",
-            "###.#",
-            "###.#",
-            "#...#",
-            "#####",
-            "#.###",
-            "#.###",
-            "#...#",
-            "#####",
-            "#...#",
-            "#.###",
-            "#.###",
-            "#####",
+        let board = new_test_board(&[
+            "######",
+            "#P.o.#",
+            "######"
+        ]);
+        let card = new_test_card(&["==="]);
+
+        assert!(!is_valid_action(
+            &State {
+                board: board.clone(),
+                turn: 0
+            },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false
+                }
+            )
+        ));
+    }
+
+    #[test]
+    fn test_touching_point() {
+        init();
+
+        #[rustfmt::skip]
+        let board = new_test_board(&[
+            "########",
+            "#.....P#",
+            "########"
+        ]);
+        let card = new_test_card(&["==="]);
+
+        // NO touching point
+        assert!(!is_valid_action(
+            &State {
+                board: board.clone(),
+                turn: 0
+            },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false
+                }
+            )
+        ));
+
+        // touch!
+        assert!(is_valid_action(
+            &State {
+                board: board.clone(),
+                turn: 0
+            },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 3,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false
+                }
+            )
+        ));
+    }
+
+    #[test]
+    fn test_rotation() {
+        init();
+
+        #[rustfmt::skip]
+        let board = new_test_board(&[
+            "######",
+            "##...#",
+            "##.#.#",
+            "#..##",
+            "##p#",
+            "####",
         ]);
         #[rustfmt::skip]
-        let card = test_card(&[
+        let card = new_test_card(&[
             "===",
-            "  =",
-            "  =",
+            "  ="
         ]);
 
-        // NO conflict
-        assert!(!has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 1,
-                rotation: Rotation::Up,
-                special: false
+        // Only Rotation::Right one should fit
+
+        assert!(!is_valid_action(
+            &State {
+                board: board.clone(),
+                turn: 0
             },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 2,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false
+                }
+            )
         ));
-        assert!(!has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 5,
-                rotation: Rotation::Right,
-                special: false
+        assert!(is_valid_action(
+            &State {
+                board: board.clone(),
+                turn: 0
             },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 2,
+                    y: 1,
+                    rotation: Rotation::Right,
+                    special: false
+                }
+            )
         ));
-        assert!(!has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 9,
-                rotation: Rotation::Down,
-                special: false
+        assert!(!is_valid_action(
+            &State {
+                board: board.clone(),
+                turn: 0
             },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 2,
+                    y: 1,
+                    rotation: Rotation::Down,
+                    special: false
+                }
+            )
         ));
-        assert!(!has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 13,
-                rotation: Rotation::Left,
-                special: false
+        assert!(!is_valid_action(
+            &State {
+                board: board.clone(),
+                turn: 0
             },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 2,
+                    y: 1,
+                    rotation: Rotation::Left,
+                    special: false
+                }
+            )
         ));
     }
 
     #[test]
-    fn test_conflict_out_side_of_board() {
+    fn test_special() {
         init();
 
         #[rustfmt::skip]
-        let board = test_board(&[
-            "#####",
-            "##.##",
-            "#...#",
-            "##.##",
-            "#####"
+        let card = new_test_card(&[
+            "===",
         ]);
-        #[rustfmt::skip]
-        let card = test_card(&[
-            "=== ="
-        ]);
-
-        assert!(has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 1,
-                rotation: Rotation::Up,
-                special: false
-            },
-        ));
-        assert!(has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 2,
-                y: 1,
-                rotation: Rotation::Right,
-                special: false
-            },
-        ));
-    }
-
-    #[test]
-    fn test_conflict_with_ink() {
-        init();
 
         #[rustfmt::skip]
-        let board = test_board(&[
-            "#####",
-            "##o##",
-            "#p..#",
-            "##.##",
-            "#####"
+        let board = new_test_board(&[
+            "###",
+            "#.#",
+            "#.#",
+            "#.#",
+            "#p#",
+            "###",
         ]);
-        #[rustfmt::skip]
-        let card = test_card(&[
-            "==="
-        ]);
-
-        assert!(has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 2,
-                rotation: Rotation::Up,
-                special: false
+        // Special attack can't be triggered without special ink on the board.
+        assert!(!is_valid_action(
+            &State {
+                board: board,
+                turn: 0
             },
-        ));
-        assert!(!has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 2,
-                rotation: Rotation::Up,
-                special: true // special is ON
-            },
-        ));
-
-        assert!(has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 2,
-                y: 1,
-                rotation: Rotation::Right,
-                special: false
-            },
-        ));
-        assert!(!has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 2,
-                y: 1,
-                rotation: Rotation::Right,
-                special: true // special is ON
-            },
-        ));
-    }
-
-    #[test]
-    fn test_conflict_with_special() {
-        init();
-
-        #[rustfmt::skip]
-        let board = test_board(&[
-            "#####",
-            "##O##",
-            "#P..#",
-            "##.##",
-            "#####"
-        ]);
-        #[rustfmt::skip]
-        let card = test_card(&[
-            "==="
-        ]);
-
-        assert!(has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 2,
-                rotation: Rotation::Up,
-                special: false
-            },
-        ));
-        assert!(has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 2,
-                rotation: Rotation::Up,
-                special: true // special is ON
-            },
-        ));
-
-        assert!(has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 2,
-                y: 1,
-                rotation: Rotation::Right,
-                special: false
-            },
-        ));
-        assert!(has_conflict(
-            &board,
-            &card,
-            &CardPosition {
-                x: 2,
-                y: 1,
-                rotation: Rotation::Right,
-                special: true // special is ON
-            },
-        ));
-    }
-
-    #[test]
-    fn test_touching_with_ink() {
-        init();
-
-        #[rustfmt::skip]
-        let board = test_board(&[
-            "#####",
-            "#p..#",
-            "#...#",
-            "#..o#",
-            "#####"
-        ]);
-        let card = test_card(&["="]);
-
-        assert!(has_touching_point(
-            &board,
             PlayerId::Player,
-            &card,
-            &CardPosition {
-                x: 2,
-                y: 1,
-                rotation: Rotation::Up,
-                special: false
-            },
-        ));
-        assert!(has_touching_point(
-            &board,
-            PlayerId::Player,
-            &card,
-            &CardPosition {
-                x: 1,
-                y: 2,
-                rotation: Rotation::Up,
-                special: false
-            },
-        ));
-        assert!(has_touching_point(
-            &board,
-            PlayerId::Player,
-            &card,
-            &CardPosition {
-                x: 2,
-                y: 2,
-                rotation: Rotation::Up,
-                special: false
-            },
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 1,
+                    rotation: Rotation::Right,
+                    special: true
+                }
+            )
         ));
 
-        // Opponent's ink shouldn't work
-        assert!(!has_touching_point(
-            &board,
-            PlayerId::Player,
-            &card,
-            &CardPosition {
-                x: 3,
-                y: 2,
-                rotation: Rotation::Up,
-                special: false
+        #[rustfmt::skip]
+        let board = new_test_board(&[
+            "###",
+            "#.#",
+            "#.#",
+            "#.#",
+            "#P#",
+            "###",
+        ]);
+        // Now we have a special ink.
+        assert!(is_valid_action(
+            &State {
+                board: board,
+                turn: 0
             },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 1,
+                    rotation: Rotation::Right,
+                    special: true
+                }
+            )
         ));
-        assert!(!has_touching_point(
-            &board,
-            PlayerId::Player,
-            &card,
-            &CardPosition {
-                x: 2,
-                y: 3,
-                rotation: Rotation::Up,
-                special: false
+
+        #[rustfmt::skip]
+        let board = new_test_board(&[
+            "###",
+            "#o#",
+            "#p#",
+            "#.#",
+            "#P#",
+            "###",
+        ]);
+        // Special attack can overdraw other ink
+        assert!(is_valid_action(
+            &State {
+                board: board.clone(),
+                turn: 0
             },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 1,
+                    rotation: Rotation::Right,
+                    special: true
+                }
+            )
+        ));
+        assert!(!is_valid_action(
+            &State {
+                board: board,
+                turn: 0
+            },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 1,
+                    rotation: Rotation::Right,
+                    special: false // special is OFF
+                }
+            )
+        ));
+
+        #[rustfmt::skip]
+        let board = new_test_board(&[
+            "###",
+            "#P#",
+            "#.#",
+            "#.#",
+            "#P#",
+            "###",
+        ]);
+        // Special attack can NOT overdraw player's SPECIAL ink too
+        assert!(!is_valid_action(
+            &State {
+                board: board,
+                turn: 0
+            },
+            PlayerId::Player,
+            Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 1,
+                    rotation: Rotation::Right,
+                    special: true
+                }
+            )
         ));
     }
 }

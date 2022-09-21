@@ -175,10 +175,6 @@ pub fn load_card_from_lines(
     let cells = read_cells(lines);
     assert_eq!(cell_count, cells.len() as u32);
 
-    let width = cells.iter().map(|c| c.position.x).max().unwrap() + 1;
-    let height = cells.iter().map(|c| c.position.y).max().unwrap() + 1;
-    debug!("The parsed card's width: {}, height: {}", width, height);
-
     let mut cells_variations: HashMap<Rotation, HashMap<CardCellPosition, CardCell>> =
         HashMap::new();
     for rot in [
@@ -189,7 +185,7 @@ pub fn load_card_from_lines(
     ]
     .iter()
     {
-        let rot_cells = rotate_card_cells(*rot, width, height, &cells);
+        let rot_cells = rotate_card_cells(*rot, &cells);
         cells_variations.insert(*rot, convert_to_cell_map(rot_cells));
     }
     assert_eq!(4, cells_variations.len());
@@ -203,15 +199,10 @@ pub fn load_card_from_lines(
     }
 }
 
-fn rotate_card_cells(
-    rotation: Rotation,
-    width: i32,
-    height: i32,
-    cells: &[CardCell],
-) -> Vec<CardCell> {
+fn rotate_card_cells(rotation: Rotation, cells: &[CardCell]) -> Vec<CardCell> {
     cells
         .iter()
-        .map(|&c| rotate_card_cell(rotation, width, height, c))
+        .map(|&c| rotate_card_cell(rotation, c))
         .collect()
 }
 
@@ -226,21 +217,21 @@ fn convert_to_cell_map(cells: Vec<CardCell>) -> HashMap<CardCellPosition, CardCe
     cell_map
 }
 
-fn rotate_card_cell(rotation: Rotation, width: i32, height: i32, cell: CardCell) -> CardCell {
+fn rotate_card_cell(rotation: Rotation, cell: CardCell) -> CardCell {
     let position = cell.position;
     let rotated_pos = match rotation {
         Rotation::Up => position,
         Rotation::Right => CardCellPosition {
-            x: height - position.y - 1,
+            x: -position.y,
             y: position.x,
         },
         Rotation::Down => CardCellPosition {
-            x: width - position.x - 1,
-            y: height - position.y - 1,
+            x: -position.x,
+            y: -position.y,
         },
         Rotation::Left => CardCellPosition {
             x: position.y,
-            y: width - position.x - 1,
+            y: -position.x,
         },
     };
 
