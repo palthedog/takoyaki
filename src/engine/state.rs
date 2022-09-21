@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use log::*;
+use rand::Rng;
 
 use super::{
     board::{Board, BoardPosition},
@@ -17,19 +18,15 @@ pub struct PlayerState<'a> {
     action_history: Vec<Action<'a>>,
     hands: Vec<&'a Card>,
     deck: Vec<&'a Card>,
-
-    // Players can change their hand once at the first turn
-    redealed: bool,
 }
 
 impl<'a> PlayerState<'a> {
-    pub fn new(deck: &[&'a Card]) -> PlayerState<'a> {
+    pub fn new(hands: &[&'a Card], deck: &[&'a Card]) -> PlayerState<'a> {
         PlayerState {
             special_count: 0,
             action_history: vec![],
-            hands: vec![],
+            hands: hands.to_vec(),
             deck: deck.to_vec(),
-            redealed: false,
         }
     }
 
@@ -40,7 +37,6 @@ impl<'a> PlayerState<'a> {
             action_history: vec![],
             hands: hand.to_vec(),
             deck: vec![],
-            redealed: false,
         }
     }
 

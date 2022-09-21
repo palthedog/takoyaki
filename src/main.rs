@@ -26,23 +26,18 @@ struct Args {
 
 pub fn deal_hands<'a>(
     rng: &mut impl Rng,
-    deck_cards: &mut Vec<&'a Card>,
-    hand: &'a mut Vec<&'a Card>,
-) {
-    let deal_cnt = game::HAND_SIZE - hand.len();
-    assert_lt!(deal_cnt, game::HAND_SIZE, "The hand is already dealed");
+    all_cards: &[&'a Card],
+    player: &'a mut impl Player,
+) -> PlayerState<'a> {
+    let mut deck_cards = player.get_deck(all_cards);
 
-    let (dealed, _) = deck_cards.partial_shuffle(rng, game::HAND_SIZE);
-    let dealed_cnt = dealed.len();
-    assert_eq!(
-        dealed_cnt, deal_cnt,
-        "The number of dealed card({}) is different from what we requested({})",
-        dealed_cnt, deal_cnt
-    );
-    hand.extend(dealed.iter());
-    deck_cards.drain(0..dealed_cnt);
+    let (mut dealed, mut remaining) = deck_cards.partial_shuffle(rng, game::HAND_SIZE);
 
-    assert_eq!(game::HAND_SIZE, hand.len());
+    if player.need_redeal_hands(dealed) {
+        (dealed, remaining) = deck_cards.partial_shuffle(rng, game::HAND_SIZE);
+    }
+
+    PlayerState::new(dealed, remaining)
 }
 
 fn run<'a>(
@@ -56,9 +51,31 @@ fn run<'a>(
     player.set_board(board);
     opponent.set_board(board);
 
-    todo!("shuffle cards and deal them");
+    // TODO: Support deck with more than 15 cards.
+    // For now, get_deck must return 15 cards to respect the rule.
+    // However, we need a way to support "pseudo" deck/hand with
+    // all possible cards so that we can playout a game to implement
+    // MCTS.
+    // Maybe we can just put all cards in `hands`?
+
+    let player_state = deal_hands(&mut rng, all_cards, player);
+    let opponent_state = deal_hands(&mut rng, all_cards, opponent);
+    info!("Player states initialized");
+    // TODO: Implement shorter display format for PlayerState
+    debug!(
+        "player: {:#?}\nopponent: {:#?}",
+        player_state, opponent_state
+    );
+    info!(
+        "player's hands: {:?}\nopponent's hands: {:?}",
+        player_state.get_hands().len(),
+        opponent_state.get_hands().len()
+    );
+
+    todo!("Implement main loop.");
 }
 
+// TODO: Move to a different file/module.
 struct RandomPlayer {
     rng: ThreadRng,
 }
@@ -76,7 +93,7 @@ impl Player for RandomPlayer {
         available_cards[0..15].to_vec()
     }
 
-    fn need_redeal_hands(&mut self, player_state: &PlayerState) -> bool {
+    fn need_redeal_hands(&mut self, dealed_cards: &[&Card]) -> bool {
         self.rng.gen_bool(0.5)
     }
 
