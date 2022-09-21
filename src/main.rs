@@ -5,7 +5,7 @@ use takoyaki::engine::{
     board,
     card::{self, CardPosition},
     game::{Action, Rotation},
-    rule::{self, PlayerState, State},
+    state::{self, PlayerState, State},
 };
 
 use clap::Parser;
@@ -50,5 +50,5 @@ fn main() {
         },
     );
     let opponent_action = Action::Pass(&all_cards[1]);
-    rule::update(&mut state, player_action, opponent_action);
+    state::update(&mut state, player_action, opponent_action);
 }
