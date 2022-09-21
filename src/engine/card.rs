@@ -49,7 +49,7 @@ impl CardCellType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Card {
     id: u32,
     name: String,

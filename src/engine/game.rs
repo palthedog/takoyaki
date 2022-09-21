@@ -37,13 +37,13 @@ pub enum PlayerType {
 }
 
 #[derive(Debug, Clone)]
-pub enum Action {
-    Pass(Card),
-    Put(Card, CardPosition),
+pub enum Action<'a> {
+    Pass(&'a Card),
+    Put(&'a Card, CardPosition),
 }
 
 #[derive(Debug, Clone)]
-pub struct PlayerState {
+pub struct PlayerState<'a> {
     pub special_count: u32,
-    pub action_history: Vec<Action>,
+    pub action_history: Vec<Action<'a>>,
 }

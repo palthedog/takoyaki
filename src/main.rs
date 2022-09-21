@@ -39,7 +39,7 @@ fn main() {
     println!("Initial State {}", state);
 
     let player_action = Action::Put(
-        all_cards.get(0).unwrap().clone(),
+        &all_cards[0],
         CardPosition {
             x: 1,
             y: 1,
@@ -47,6 +47,6 @@ fn main() {
             special: false,
         },
     );
-    let opponent_action = Action::Pass(all_cards.get(1).unwrap().clone());
+    let opponent_action = Action::Pass(&all_cards[1]);
     rule::update(&mut state, player_action, opponent_action);
 }
