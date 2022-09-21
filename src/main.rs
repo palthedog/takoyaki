@@ -4,7 +4,7 @@ extern crate log;
 use takoyaki::engine::{
     board,
     card::{self, CardPosition},
-    game::{Action, Rotation, State},
+    game::{Action, PlayerState, Rotation, State},
     rule,
 };
 
@@ -32,10 +32,12 @@ fn main() {
     let all_boards = board::load_boards(&args.board_dir);
     all_boards.iter().for_each(|c| info!("{}", c));
 
-    let mut state = State {
-        board: all_boards.get(0).unwrap().clone(),
-        turn: 0,
-    };
+    let mut state = State::new(
+        all_boards.get(0).unwrap().clone(),
+        0,
+        PlayerState::new(&[&all_cards[0]]),
+        PlayerState::new(&[&all_cards[0]]),
+    );
     println!("Initial State {}", state);
 
     let player_action = Action::Put(

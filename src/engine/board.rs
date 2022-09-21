@@ -7,11 +7,7 @@ use std::{
 
 use log::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PlayerId {
-    Player,
-    Opponent,
-}
+use super::game::PlayerId;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BoardCell {
