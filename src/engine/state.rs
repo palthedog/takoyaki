@@ -29,16 +29,6 @@ impl<'a> PlayerState<'a> {
         }
     }
 
-    #[cfg(test)]
-    fn new_with_hand_for_testing(hand: &[&'a Card]) -> PlayerState<'a> {
-        PlayerState {
-            special_count: 0,
-            action_history: vec![],
-            hands: hand.to_vec(),
-            deck: vec![],
-        }
-    }
-
     pub fn get_hands(&self) -> &[&Card] {
         &self.hands
     }
@@ -58,79 +48,62 @@ impl<'a> Display for PlayerState<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct State<'a> {
-    board: Board,
-    turn: u32,
-    player_state: PlayerState<'a>,
-    opponent_state: PlayerState<'a>,
+pub struct State {
+    pub board: Board,
+    pub turn: u32,
 }
 
-impl<'a> State<'a> {
-    pub fn new(
-        board: Board,
-        turn: u32,
-        player_state: PlayerState<'a>,
-        opponent_state: PlayerState<'a>,
-    ) -> State<'a> {
-        State {
-            board,
-            turn,
-            player_state,
-            opponent_state,
-        }
-    }
-
-    fn get_player_state(&mut self, player_id: PlayerId) -> &mut PlayerState<'a> {
-        match player_id {
-            PlayerId::Player => &mut self.player_state,
-            PlayerId::Opponent => &mut self.opponent_state,
-        }
+impl<'a> State {
+    pub fn new(board: Board, turn: u32) -> State {
+        State { board, turn }
     }
 }
 
-impl<'a> Display for State<'a> {
+impl<'a> Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "turn: {}\n{}", self.turn, self.board)
     }
 }
 
-pub fn update(state: &mut State, player_action: &Action, opponent_action: &Action) -> bool {
-    if !is_valid_action(state, PlayerId::Player, &player_action) {
+pub fn update_board(board: &mut Board, player_action: &Action, opponent_action: &Action) -> bool {
+    if !is_valid_action(board, PlayerId::Player, &player_action) {
         error!(
-            "Player's action is invalid: state: {:?}\n action: {:?}",
-            state, player_action
+            "Player's action is invalid: board: {:?}\n action: {:?}",
+            board, player_action
         );
-        panic!();
+        todo!("Player should lose");
     }
-    if !is_valid_action(state, PlayerId::Opponent, &opponent_action) {
+    if !is_valid_action(board, PlayerId::Opponent, &opponent_action) {
         error!(
-            "Opponent's action is invalid: state: {:?}\n action: {:?}",
-            state, opponent_action
+            "Opponent's action is invalid: board: {:?}\n action: {:?}",
+            board, opponent_action
         );
-        panic!();
+        todo!("Opponent should lose");
     }
+
+    todo!("update board");
 
     false
 }
 
-pub fn is_valid_action(state: &State, player_id: PlayerId, action: &Action) -> bool {
+pub fn is_valid_action(board: &Board, player_id: PlayerId, action: &Action) -> bool {
     match action {
         Action::Pass(_) => true,
-        Action::Put(card, pos) => check_action_put(state, player_id, card, &pos),
+        Action::Put(card, pos) => check_action_put(board, player_id, card, &pos),
     }
 }
 
 fn check_action_put(
-    state: &State,
+    board: &Board,
     player_id: PlayerId,
     card: &Card,
     position: &CardPosition,
 ) -> bool {
-    if has_conflict(&state.board, card, position) {
+    if has_conflict(board, card, position) {
         return false;
     }
 
-    if !has_touching_point(&state.board, player_id, card, position) {
+    if !has_touching_point(board, player_id, card, position) {
         return false;
     }
     true
@@ -231,16 +204,6 @@ mod tests {
         card::load_card_from_lines(42, String::from("test card"), cell_cnt, 42, &lines)
     }
 
-    fn new_test_state<'a>(
-        board: Board,
-        player_hand: &[&'a Card],
-        opponent_hand: &[&'a Card],
-    ) -> State<'a> {
-        let player_state = PlayerState::new_with_hand_for_testing(player_hand);
-        let opponent_state = PlayerState::new_with_hand_for_testing(opponent_hand);
-        State::new(board, 0, player_state, opponent_state)
-    }
-
     #[test]
     fn test_conflict() {
         init();
@@ -255,7 +218,7 @@ mod tests {
 
         // NO conflict
         assert!(is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -270,7 +233,7 @@ mod tests {
 
         // DO conflict with wall
         assert!(!is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -285,7 +248,7 @@ mod tests {
 
         // DO conflict with ink
         assert!(!is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -312,7 +275,7 @@ mod tests {
         let card = new_test_card(&["==="]);
 
         assert!(!is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -340,7 +303,7 @@ mod tests {
 
         // NO touching point
         assert!(!is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -355,7 +318,7 @@ mod tests {
 
         // touch!
         assert!(is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -391,7 +354,7 @@ mod tests {
         // Only Rotation::Right one should fit
 
         assert!(!is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -404,7 +367,7 @@ mod tests {
             )
         ));
         assert!(is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -417,7 +380,7 @@ mod tests {
             )
         ));
         assert!(!is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -430,7 +393,7 @@ mod tests {
             )
         ));
         assert!(!is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -464,7 +427,7 @@ mod tests {
         ]);
         // Special attack can't be triggered without special ink on the board.
         assert!(!is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -488,7 +451,7 @@ mod tests {
         ]);
         // Now we have a special ink.
         assert!(is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -512,7 +475,7 @@ mod tests {
         ]);
         // Special attack can overdraw other ink
         assert!(is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -525,7 +488,7 @@ mod tests {
             )
         ));
         assert!(!is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -549,7 +512,7 @@ mod tests {
         ]);
         // Special attack can NOT overdraw player's SPECIAL ink too
         assert!(!is_valid_action(
-            &new_test_state(board.clone(), &[&card], &[&card]),
+            &board.clone(),
             PlayerId::Player,
             &Action::Put(
                 &card,

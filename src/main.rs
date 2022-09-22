@@ -6,7 +6,7 @@ use takoyaki::engine::{
     card::{self, Card},
     game::{self, Action},
     player::Player,
-    state::PlayerState,
+    state::{self, PlayerState, State},
 };
 
 use clap::Parser;
@@ -26,7 +26,7 @@ struct Args {
 pub fn deal_hands<'a>(
     rng: &mut impl Rng,
     all_cards: &[&'a Card],
-    player: &'a mut impl Player,
+    player: &mut impl Player,
 ) -> PlayerState<'a> {
     let mut deck_cards = player.get_deck(all_cards);
 
@@ -62,7 +62,23 @@ fn run<'a>(
     info!("Player states initialized");
     // TODO: Implement shorter display format for PlayerState
     info!("player: {}\nopponent: {}", player_state, opponent_state);
+    let mut current_board: Board = board.clone();
 
+    for turn in 0..15 {
+        let state = State::new(current_board, 0);
+        info!("Starting Turn {}", turn + 1);
+        let player_action = player.get_action(&state, &player_state);
+        let opponent_action = opponent.get_action(&state, &opponent_state);
+
+        let mut new_board = state.board.clone();
+        let result = state::update_board(&mut new_board, &player_action, &opponent_action);
+        if !result {
+            todo!("Support handling update error");
+        }
+        current_board = new_board;
+
+        info!("State is updated ->: {}", state);
+    }
     todo!("Implement main loop.");
 }
 
@@ -88,7 +104,7 @@ impl Player for RandomPlayer {
         self.rng.gen_bool(0.5)
     }
 
-    fn get_action<'a>(&'a mut self, player_state: &'a PlayerState) -> Action {
+    fn get_action<'a>(&'a mut self, state: &'a State, player_state: &'a PlayerState) -> Action {
         Action::Pass(player_state.get_hands()[0])
     }
 }

@@ -1,4 +1,9 @@
-use super::{board::Board, card::Card, game::Action, state::PlayerState};
+use super::{
+    board::Board,
+    card::Card,
+    game::Action,
+    state::{PlayerState, State},
+};
 
 pub trait Player {
     fn set_board(&mut self, board: &Board);
@@ -8,5 +13,5 @@ pub trait Player {
     /// It will be called once before the first action.
     fn need_redeal_hands(&mut self, dealed_cards: &[&Card]) -> bool;
 
-    fn get_action<'a>(&'a mut self, player_state: &'a PlayerState) -> Action;
+    fn get_action<'a>(&'a mut self, state: &'a State, player_state: &'a PlayerState) -> Action;
 }
