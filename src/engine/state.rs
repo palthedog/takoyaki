@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
 use log::*;
-use rand::Rng;
 
 use super::{
     board::{Board, BoardPosition},
@@ -42,6 +41,19 @@ impl<'a> PlayerState<'a> {
 
     pub fn get_hands(&self) -> &[&Card] {
         &self.hands
+    }
+}
+
+impl<'a> Display for PlayerState<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Special: {}", self.special_count)?;
+        writeln!(f, "Hands:[")?;
+        for card in self.hands.iter() {
+            f.write_str(&textwrap::indent(&format!("{}\n", card), "    "))?;
+        }
+        writeln!(f, "]")?;
+
+        Ok(())
     }
 }
 

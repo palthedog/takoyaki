@@ -11,7 +11,6 @@ use takoyaki::engine::{
 
 use clap::Parser;
 use log::*;
-use more_asserts::*;
 use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
 
 #[derive(Parser, Debug)]
@@ -62,15 +61,7 @@ fn run<'a>(
     let opponent_state = deal_hands(&mut rng, all_cards, opponent);
     info!("Player states initialized");
     // TODO: Implement shorter display format for PlayerState
-    debug!(
-        "player: {:#?}\nopponent: {:#?}",
-        player_state, opponent_state
-    );
-    info!(
-        "player's hands: {:?}\nopponent's hands: {:?}",
-        player_state.get_hands().len(),
-        opponent_state.get_hands().len()
-    );
+    info!("player: {}\nopponent: {}", player_state, opponent_state);
 
     todo!("Implement main loop.");
 }
@@ -87,13 +78,13 @@ impl RandomPlayer {
 }
 
 impl Player for RandomPlayer {
-    fn set_board(&mut self, board: &Board) {}
+    fn set_board(&mut self, _board: &Board) {}
 
     fn get_deck<'a>(&mut self, available_cards: &[&'a Card]) -> Vec<&'a Card> {
         available_cards[0..15].to_vec()
     }
 
-    fn need_redeal_hands(&mut self, dealed_cards: &[&Card]) -> bool {
+    fn need_redeal_hands(&mut self, _dealed_cards: &[&Card]) -> bool {
         self.rng.gen_bool(0.5)
     }
 
