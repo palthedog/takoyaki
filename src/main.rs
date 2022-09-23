@@ -30,18 +30,21 @@ pub fn deal_hands<'a>(
 ) -> PlayerState<'a> {
     let mut deck_cards = player.get_deck(all_cards);
 
-    let (mut dealed, mut remaining) = deck_cards.partial_shuffle(rng, game::HAND_SIZE);
+    deck_cards.shuffle(rng);
 
-    if player.need_redeal_hands(dealed) {
-        (dealed, remaining) = deck_cards.partial_shuffle(rng, game::HAND_SIZE);
+    if player.need_redeal_hands(&deck_cards[0..game::HAND_SIZE]) {
+        deck_cards.shuffle(rng);
     }
 
-    PlayerState::new(dealed, remaining)
+    PlayerState::new(
+        &deck_cards[0..game::HAND_SIZE],
+        &deck_cards[game::HAND_SIZE..],
+    )
 }
 
-fn run<'a>(
-    board: &'a Board,
-    all_cards: &[&'a Card],
+fn run<'a, 'c: 'a>(
+    board: &'c Board,
+    all_cards: &[&'c Card],
     player: &'a mut impl Player,
     opponent: &'a mut impl Player,
 ) {
@@ -57,29 +60,36 @@ fn run<'a>(
     // MCTS.
     // Maybe we can just put all cards in `hands`?
 
-    let player_state = deal_hands(&mut rng, all_cards, player);
-    let opponent_state = deal_hands(&mut rng, all_cards, opponent);
+    let mut player_state = deal_hands(&mut rng, all_cards, player);
+    let mut opponent_state = deal_hands(&mut rng, all_cards, opponent);
     info!("Player states initialized");
     // TODO: Implement shorter display format for PlayerState
     info!("player: {}\nopponent: {}", player_state, opponent_state);
     let mut current_board: Board = board.clone();
 
-    for turn in 0..15 {
-        let state = State::new(current_board, 0);
+    for turn in 0..game::TURN_COUNT {
+        let state = State::new(current_board, turn);
         info!("Starting Turn {}", turn + 1);
         let player_action = player.get_action(&state, &player_state);
         let opponent_action = opponent.get_action(&state, &opponent_state);
 
         let mut new_board = state.board.clone();
-        let result = state::update_board(&mut new_board, &player_action, &opponent_action);
-        if !result {
-            todo!("Support handling update error");
-        }
+        state::update_board(&mut new_board, &player_action, &opponent_action);
         current_board = new_board;
 
+        debug!("Updating player/opponent state");
+        let mut tmp = player_state.clone();
+        state::update_player_state(&mut tmp, &player_action);
+        player_state = tmp;
+
+        let mut tmp = opponent_state.clone();
+        state::update_player_state(&mut tmp, &opponent_action);
+        opponent_state = tmp;
+
         info!("State is updated ->: {}", state);
+        info!("Player state: {}", player_state);
+        info!("Opponent state: {}", opponent_state);
     }
-    todo!("Implement main loop.");
 }
 
 // TODO: Move to a different file/module.
@@ -104,7 +114,8 @@ impl Player for RandomPlayer {
         self.rng.gen_bool(0.5)
     }
 
-    fn get_action<'a>(&'a mut self, state: &'a State, player_state: &'a PlayerState) -> Action {
+    fn get_action<'a>(&mut self, state: &State, player_state: &'a PlayerState) -> Action<'a> {
+        todo!("Choose a random action from valid options.");
         Action::Pass(player_state.get_hands()[0])
     }
 }

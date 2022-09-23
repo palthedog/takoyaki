@@ -6,7 +6,10 @@ use std::{
     path::Path,
 };
 
-use super::game::Rotation;
+use super::{
+    board::{BoardCell, BoardPosition},
+    game::{PlayerId, Rotation},
+};
 
 use log::*;
 
@@ -26,6 +29,22 @@ impl Display for CardCellPosition {
 pub struct CardCell {
     pub position: CardCellPosition,
     pub cell_type: CardCellType,
+
+    /// It is used when both players put a cell on an exact same place.
+    /// Lower one is prioritized.
+    pub priority: u32,
+}
+
+impl CardCell {
+    pub const PRIORITY_MAX: u32 = 1000;
+
+    fn calc_cell_priority(cell_type: &CardCellType, cell_count: u32) -> u32 {
+        match cell_type {
+            CardCellType::None => panic!(),
+            CardCellType::Ink => cell_count + 128,
+            CardCellType::Special => cell_count,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -46,6 +65,14 @@ impl CardCellType {
 
     pub fn is_none(&self) -> bool {
         matches!(self, CardCellType::None)
+    }
+
+    pub fn to_board_cell(&self, player_id: PlayerId) -> BoardCell {
+        match self {
+            CardCellType::None => BoardCell::None,
+            CardCellType::Ink => BoardCell::Ink(player_id),
+            CardCellType::Special => BoardCell::Special(player_id),
+        }
     }
 }
 
@@ -73,6 +100,21 @@ impl Card {
 
     pub fn get_cells(&self, rotation: Rotation) -> &HashMap<CardCellPosition, CardCell> {
         self.cells.get(&rotation).unwrap()
+    }
+
+    pub fn get_putting_cells<'a>(
+        &'a self,
+        card_position: &'a CardPosition,
+    ) -> impl Iterator<Item = (BoardPosition, &'a CardCell)> + 'a {
+        let cells = self.get_cells(card_position.rotation);
+        cells.values().map(|cell| {
+            let cell_position = cell.position;
+            let board_pos = BoardPosition {
+                x: card_position.x + cell_position.x,
+                y: card_position.y + cell_position.y,
+            };
+            (board_pos, cell)
+        })
     }
 
     pub fn calculate_width(&self, rotation: Rotation) -> i32 {
@@ -172,8 +214,12 @@ pub fn load_card_from_lines(
     special_cost: u32,
     lines: &[String],
 ) -> Card {
-    let cells = read_cells(lines);
-    assert_eq!(cell_count, cells.len() as u32);
+    let cells = read_cells(cell_count, lines);
+    assert_eq!(
+        cell_count,
+        cells.len() as u32,
+        "The parsed cell count is different from the one in card data"
+    );
 
     let mut cells_variations: HashMap<Rotation, HashMap<CardCellPosition, CardCell>> =
         HashMap::new();
@@ -241,7 +287,7 @@ fn rotate_card_cell(rotation: Rotation, cell: CardCell) -> CardCell {
     }
 }
 
-fn read_cells(lines: &[String]) -> Vec<CardCell> {
+fn read_cells(cell_count: u32, lines: &[String]) -> Vec<CardCell> {
     let mut card_cells: Vec<CardCell> = vec![];
     for (y, line) in lines.iter().enumerate() {
         for (x, cell_type) in line
@@ -262,15 +308,18 @@ fn read_cells(lines: &[String]) -> Vec<CardCell> {
                 x: x as i32,
                 y: y as i32,
             };
+            let priority = CardCell::calc_cell_priority(&cell_type, cell_count);
             card_cells.push(CardCell {
                 position,
                 cell_type,
+                priority,
             });
         }
     }
 
     card_cells
 }
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CardPosition {
     pub x: i32,

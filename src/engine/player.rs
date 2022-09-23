@@ -13,5 +13,5 @@ pub trait Player {
     /// It will be called once before the first action.
     fn need_redeal_hands(&mut self, dealed_cards: &[&Card]) -> bool;
 
-    fn get_action<'a>(&'a mut self, state: &'a State, player_state: &'a PlayerState) -> Action;
+    fn get_action<'a>(&mut self, state: &State, player_state: &'a PlayerState) -> Action<'a>;
 }

@@ -1,10 +1,10 @@
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 use log::*;
 
 use super::{
-    board::{Board, BoardPosition},
-    card::Card,
+    board::{Board, BoardCell, BoardPosition},
+    card::{Card, CardCell, CardCellType},
 };
 use super::{
     card::CardPosition,
@@ -31,6 +31,29 @@ impl<'a> PlayerState<'a> {
 
     pub fn get_hands(&self) -> &[&Card] {
         &self.hands
+    }
+
+    // We may want a randomized version later for random simulation.
+    fn draw_card(&mut self) {
+        if self.deck.is_empty() {
+            debug!("There is no card in the deck.");
+            return;
+        }
+        let draw = self.deck.remove(0);
+        self.hands.push(draw);
+    }
+
+    pub fn consume_card(&mut self, card: &Card) {
+        for i in 0..self.hands.len() {
+            if self.hands[i].get_id() == card.get_id() {
+                self.hands.remove(i);
+                return;
+            }
+        }
+        panic!(
+            "Couldn't find the consumed card from hands.\nconsumed: {}\nhands: {:?}\n",
+            card, self.hands
+        );
     }
 }
 
@@ -61,11 +84,16 @@ impl<'a> State {
 
 impl<'a> Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "turn: {}\n{}", self.turn, self.board)
+        write!(f, "turn: {}\n{}", self.turn + 1, self.board)
     }
 }
 
-pub fn update_board(board: &mut Board, player_action: &Action, opponent_action: &Action) -> bool {
+pub fn update_player_state(state: &mut PlayerState, action: &Action) {
+    state.consume_card(action.get_consumed_card());
+    state.draw_card();
+}
+
+pub fn update_board(board: &mut Board, player_action: &Action, opponent_action: &Action) {
     if !is_valid_action(board, PlayerId::Player, &player_action) {
         error!(
             "Player's action is invalid: board: {:?}\n action: {:?}",
@@ -81,9 +109,41 @@ pub fn update_board(board: &mut Board, player_action: &Action, opponent_action: 
         todo!("Opponent should lose");
     }
 
-    todo!("update board");
+    fill_cells(board, player_action, opponent_action);
 
-    false
+    warn!("TODO: Check special inks and update special points.");
+}
+
+fn fill_cells(board: &mut Board, player_action: &Action, opponent_action: &Action) {
+    let mut priorities: HashMap<BoardPosition, u32> = HashMap::new();
+    // Filling player's cell
+    if let Action::Put(card, card_position) = player_action {
+        for (board_pos, &cell) in card.get_putting_cells(card_position) {
+            // Modify board
+            let fill = cell.cell_type.to_board_cell(PlayerId::Player);
+            debug!("Filling {} at {}", board_pos, fill);
+            board.put_cell(board_pos, fill);
+            // Remember the priority
+            priorities.insert(board_pos, cell.priority);
+        }
+    }
+
+    if let Action::Put(card, card_position) = opponent_action {
+        for (board_pos, &cell) in card.get_putting_cells(card_position) {
+            // Modify board
+            let priority: u32 = *priorities
+                .get(&board_pos)
+                .unwrap_or(&CardCell::PRIORITY_MAX);
+            if priority > cell.priority {
+                let fill = cell.cell_type.to_board_cell(PlayerId::Opponent);
+                debug!("Filling {} at {}", board_pos, fill);
+                board.put_cell(board_pos, fill);
+            } else if priority == cell.priority {
+                debug!("Filling {} at {}", board_pos, BoardCell::Wall);
+                board.put_cell(board_pos, BoardCell::Wall);
+            }
+        }
+    }
 }
 
 pub fn is_valid_action(board: &Board, player_id: PlayerId, action: &Action) -> bool {
@@ -111,15 +171,8 @@ fn check_action_put(
 
 fn has_conflict(board: &Board, card: &Card, card_position: &CardPosition) -> bool {
     let special = card_position.special;
-    let cells = card.get_cells(card_position.rotation);
-    trace!("card pos: [{},{}]", card_position.x, card_position.y);
-    for cell_pos in cells.keys() {
-        trace!("  cell pos: {}", cell_pos);
-        let board_pos = BoardPosition {
-            x: card_position.x + cell_pos.x,
-            y: card_position.y + cell_pos.y,
-        };
-        trace!("  board pos: {}", board_pos);
+
+    for (board_pos, &cell) in card.get_putting_cells(card_position) {
         let board_cell = board.get_cell(board_pos);
         let conflict = match (board_cell, special) {
             (crate::engine::board::BoardCell::None, _) => false,

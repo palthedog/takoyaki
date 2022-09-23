@@ -17,6 +17,12 @@ pub enum BoardCell {
     Special(PlayerId),
 }
 
+impl Display for BoardCell {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_char())
+    }
+}
+
 impl BoardCell {
     fn to_char(self) -> char {
         match self {
@@ -54,8 +60,9 @@ impl BoardCell {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoardPosition {
+    // We choose `i32` here so that we can describe the position of out side of the board.
     pub x: i32,
     pub y: i32,
 }
@@ -81,6 +88,16 @@ impl Board {
             return BoardCell::Wall;
         }
         self.cells[y][x]
+    }
+
+    pub fn put_cell(&mut self, position: BoardPosition, cell: BoardCell) {
+        let x = position.x as usize;
+        let y = position.y as usize;
+        assert!(
+            y >= self.cells.len() || x >= self.cells.get(y).unwrap().len(),
+            "Cannot update a cell at out side of the board"
+        );
+        self.cells[y][x] = cell;
     }
 }
 
