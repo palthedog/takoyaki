@@ -13,7 +13,6 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct PlayerState<'a> {
-    special_count: u32,
     action_history: Vec<Action<'a>>,
     hands: Vec<&'a Card>,
     deck: Vec<&'a Card>,
@@ -22,7 +21,6 @@ pub struct PlayerState<'a> {
 impl<'a> PlayerState<'a> {
     pub fn new(hands: &[&'a Card], deck: &[&'a Card]) -> PlayerState<'a> {
         PlayerState {
-            special_count: 0,
             action_history: vec![],
             hands: hands.to_vec(),
             deck: deck.to_vec(),
@@ -59,7 +57,6 @@ impl<'a> PlayerState<'a> {
 
 impl<'a> Display for PlayerState<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Special: {}", self.special_count)?;
         writeln!(f, "Hands:[")?;
         for card in self.hands.iter() {
             f.write_str(&textwrap::indent(&format!("{}\n", card), "    "))?;
@@ -70,15 +67,28 @@ impl<'a> Display for PlayerState<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+// TODO: Rename it to PublicState
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     pub board: Board,
     pub turn: u32,
+    pub player_special_count: u32,
+    pub opponent_special_count: u32,
 }
 
 impl<'a> State {
-    pub fn new(board: Board, turn: u32) -> State {
-        State { board, turn }
+    pub fn new(
+        board: Board,
+        turn: u32,
+        player_special_count: u32,
+        opponent_special_count: u32,
+    ) -> State {
+        State {
+            board,
+            turn,
+            player_special_count,
+            opponent_special_count,
+        }
     }
 }
 
@@ -88,41 +98,42 @@ impl<'a> Display for State {
     }
 }
 
-pub fn update_player_state(state: &mut PlayerState, action: &Action) {
-    state.consume_card(action.get_consumed_card());
-    state.draw_card();
+pub fn update_player_state(player_state: &mut PlayerState, action: &Action) {
+    player_state.consume_card(action.get_consumed_card());
+    player_state.draw_card();
 }
 
-pub fn update_board(board: &mut Board, player_action: &Action, opponent_action: &Action) {
-    if !is_valid_action(board, PlayerId::Player, &player_action) {
+pub fn update_state(state: &mut State, player_action: &Action, opponent_action: &Action) {
+    if !is_valid_action(&state.board, PlayerId::Player, &player_action) {
         error!(
             "Player's action is invalid: board: {:?}\n action: {:?}",
-            board, player_action
+            state.board, player_action
         );
         todo!("Player should lose");
     }
-    if !is_valid_action(board, PlayerId::Opponent, &opponent_action) {
+    if !is_valid_action(&state.board, PlayerId::Opponent, &opponent_action) {
         error!(
             "Opponent's action is invalid: board: {:?}\n action: {:?}",
-            board, opponent_action
+            state.board, opponent_action
         );
         todo!("Opponent should lose");
     }
 
-    fill_cells(board, player_action, opponent_action);
+    fill_cells(state, player_action, opponent_action);
 
     warn!("TODO: Check special inks and update special points.");
 }
 
-fn fill_cells(board: &mut Board, player_action: &Action, opponent_action: &Action) {
+fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Action) {
     let mut priorities: HashMap<BoardPosition, u32> = HashMap::new();
+
     // Filling player's cell
     if let Action::Put(card, card_position) = player_action {
         for (board_pos, &cell) in card.get_putting_cells(card_position) {
             // Modify board
             let fill = cell.cell_type.to_board_cell(PlayerId::Player);
             debug!("Filling {} at {}", board_pos, fill);
-            board.put_cell(board_pos, fill);
+            state.board.put_cell(board_pos, fill);
             // Remember the priority
             priorities.insert(board_pos, cell.priority);
         }
@@ -137,10 +148,10 @@ fn fill_cells(board: &mut Board, player_action: &Action, opponent_action: &Actio
             if priority > cell.priority {
                 let fill = cell.cell_type.to_board_cell(PlayerId::Opponent);
                 debug!("Filling {} at {}", board_pos, fill);
-                board.put_cell(board_pos, fill);
+                state.board.put_cell(board_pos, fill);
             } else if priority == cell.priority {
                 debug!("Filling {} at {}", board_pos, BoardCell::Wall);
-                board.put_cell(board_pos, BoardCell::Wall);
+                state.board.put_cell(board_pos, BoardCell::Wall);
             }
         }
     }
@@ -236,6 +247,20 @@ mod tests {
 
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
+    }
+
+    fn new_test_state(
+        lines: &[&str],
+        turn: u32,
+        player_special_count: u32,
+        opponent_special_count: u32,
+    ) -> State {
+        State::new(
+            new_test_board(lines),
+            turn,
+            player_special_count,
+            opponent_special_count,
+        )
     }
 
     fn new_test_board(lines: &[&str]) -> crate::engine::board::Board {
@@ -577,5 +602,63 @@ mod tests {
                 }
             )
         ));
+    }
+
+    #[test]
+    fn test_update_state() {
+        init();
+
+        #[rustfmt::skip]
+        let mut state = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#.....#",
+            "#..P..#",
+            "#######"],
+            0,
+            0,
+            0
+        );
+        #[rustfmt::skip]
+        let card = new_test_card(&[
+            "=",
+            "*",
+            "="
+        ]);
+
+        update_state(
+            &mut state,
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 2,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 4,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+        );
+
+        #[rustfmt::skip]
+        let expected = new_test_state(&[
+            "#######",
+            "#.pOo.#",
+            "#.P.O.#",
+            "#.pPo.#",
+            "#######"],
+            0,
+            0,
+            0
+        );
+        assert_eq!(state, expected, "Actual: {}\nExpected: {}", state, expected);
     }
 }

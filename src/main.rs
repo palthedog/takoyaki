@@ -65,17 +65,14 @@ fn run<'a, 'c: 'a>(
     info!("Player states initialized");
     // TODO: Implement shorter display format for PlayerState
     info!("player: {}\nopponent: {}", player_state, opponent_state);
-    let mut current_board: Board = board.clone();
-
+    let mut state = State::new(board.clone(), 0, 0, 0);
     for turn in 0..game::TURN_COUNT {
-        let state = State::new(current_board, turn);
+        state.turn = turn;
         info!("Starting Turn {}", turn + 1);
         let player_action = player.get_action(&state, &player_state);
         let opponent_action = opponent.get_action(&state, &opponent_state);
 
-        let mut new_board = state.board.clone();
-        state::update_board(&mut new_board, &player_action, &opponent_action);
-        current_board = new_board;
+        state::update_state(&mut state, &player_action, &opponent_action);
 
         debug!("Updating player/opponent state");
         let mut tmp = player_state.clone();

@@ -73,7 +73,7 @@ impl Display for BoardPosition {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Board {
     id: u32,
     name: String,
@@ -91,13 +91,16 @@ impl Board {
     }
 
     pub fn put_cell(&mut self, position: BoardPosition, cell: BoardCell) {
-        let x = position.x as usize;
-        let y = position.y as usize;
+        let x = position.x;
+        let y = position.y;
         assert!(
-            y >= self.cells.len() || x >= self.cells.get(y).unwrap().len(),
+            y >= 0
+                || x >= 0
+                || y < self.cells.len() as i32
+                || x < self.cells.get(y as usize).unwrap().len() as i32,
             "Cannot update a cell at out side of the board"
         );
-        self.cells[y][x] = cell;
+        self.cells[y as usize][x as usize] = cell;
     }
 }
 

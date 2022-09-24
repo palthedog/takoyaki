@@ -38,6 +38,11 @@ pub struct CardCell {
 impl CardCell {
     pub const PRIORITY_MAX: u32 = 1000;
 
+    /// Calculate cell priority used when both players actions conflict
+    /// (a same cell is going to be filled by both players on a same turn)
+    ///   - Special block is more prioritized than normal ink.
+    ///   - If same ink blocks conflict, a card with lower cost (number of cells) is prioritized.
+    /// Note that special attack doesn't affect the priority.
     fn calc_cell_priority(cell_type: &CardCellType, cell_count: u32) -> u32 {
         match cell_type {
             CardCellType::None => panic!(),
