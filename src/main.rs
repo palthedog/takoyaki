@@ -67,7 +67,6 @@ fn run<'a, 'c: 'a>(
     info!("player: {}\nopponent: {}", player_state, opponent_state);
     let mut state = State::new(board.clone(), 0, 0, 0);
     for turn in 0..game::TURN_COUNT {
-        state.turn = turn;
         info!("Starting Turn {}", turn + 1);
         let player_action = player.get_action(&state, &player_state);
         let opponent_action = opponent.get_action(&state, &opponent_state);

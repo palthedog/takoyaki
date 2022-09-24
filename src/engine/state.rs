@@ -122,6 +122,7 @@ pub fn update_state(state: &mut State, player_action: &Action, opponent_action: 
     fill_cells(state, player_action, opponent_action);
 
     warn!("TODO: Check special inks and update special points.");
+    state.turn += 1
 }
 
 fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Action) {
@@ -655,10 +656,272 @@ mod tests {
             "#.P.O.#",
             "#.pPo.#",
             "#######"],
+            1,
+            0,
+            0
+        );
+        assert_eq!(
+            state, expected,
+            "\nActual:\n{}\nExpected:\n{}",
+            state, expected
+        );
+    }
+
+    #[test]
+    fn test_update_state_conflict() {
+        init();
+
+        #[rustfmt::skip]
+        let mut state = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#.....#",
+            "#..P..#",
+            "#######"],
             0,
             0,
             0
         );
-        assert_eq!(state, expected, "Actual: {}\nExpected: {}", state, expected);
+        #[rustfmt::skip]
+        let card = new_test_card(&[
+            "=*=",
+        ]);
+
+        update_state(
+            &mut state,
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 2,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 3,
+                    y: 2,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+        );
+
+        #[rustfmt::skip]
+        let expected = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#pP#Oo#",
+            "#..P..#",
+            "#######"],
+            1,
+            0,
+            0
+        );
+        assert_eq!(
+            state, expected,
+            "\nActual:\n{}\nExpected:\n{}",
+            state, expected
+        );
     }
-}
+
+    #[test]
+    fn test_update_state_prioritize_smaller() {
+        init();
+
+        #[rustfmt::skip]
+        let mut state = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#.....#",
+            "#..P..#",
+            "#######"],
+            0,
+            0,
+            0
+        );
+        #[rustfmt::skip]
+        let card = new_test_card(&[
+            "=*=",
+        ]);
+        #[rustfmt::skip]
+        let card_large = new_test_card(&[
+            "=*=",
+            "  =",
+        ]);
+
+        update_state(
+            &mut state,
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 2,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+            &Action::Put(
+                &card_large,
+                CardPosition {
+                    x: 3,
+                    y: 2,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+        );
+
+        // smaller card should be prioritized
+        #[rustfmt::skip]
+        let expected = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#pPpOo#",
+            "#..P.o#",
+            "#######"],
+            1,
+            0,
+            0
+        );
+        assert_eq!(
+            state, expected,
+            "\nActual:\n{}\nExpected:\n{}",
+            state, expected
+        );
+    }
+
+    #[test]
+    fn test_update_state_prioritize_special_ink() {
+        init();
+
+        #[rustfmt::skip]
+        let mut state = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#.....#",
+            "#..P..#",
+            "#######"],
+            0,
+            0,
+            0
+        );
+        #[rustfmt::skip]
+        let card = new_test_card(&[
+            "=*=",
+        ]);
+        #[rustfmt::skip]
+        let card_large = new_test_card(&[
+            "*==",
+            "  =",
+        ]);
+
+        update_state(
+            &mut state,
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 2,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+            &Action::Put(
+                &card_large,
+                CardPosition {
+                    x: 3,
+                    y: 2,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+        );
+
+        // smaller card should be prioritized
+        #[rustfmt::skip]
+        let expected = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#pPOoo#",
+            "#..P.o#",
+            "#######"],
+            1,
+            0,
+            0
+        );
+        assert_eq!(
+            state, expected,
+            "\nActual:\n{}\nExpected:\n{}",
+            state, expected
+        );
+    }
+
+    #[test]
+    fn test_update_state_special_attack_should_not_be_prioritized() {
+        init();
+
+        #[rustfmt::skip]
+        let mut state = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#.....#",
+            "#..P..#",
+            "#######"],
+            0,
+            0,
+            0
+        );
+        #[rustfmt::skip]
+        let card = new_test_card(&[
+            "=*=",
+        ]);
+        #[rustfmt::skip]
+        let card_large = new_test_card(&[
+            "=*=",
+        ]);
+
+        update_state(
+            &mut state,
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 2,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+            &Action::Put(
+                &card_large,
+                CardPosition {
+                    x: 3,
+                    y: 2,
+                    rotation: Rotation::Up,
+                    special: true,
+                },
+            ),
+        );
+
+        // Opponent used special attack.
+        // The conflicted cell should become a wall.
+        #[rustfmt::skip]
+        let expected = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#pP#Oo#",
+            "#..P..#",
+            "#######"],
+            1,
+            0,
+            0
+        );
+        assert_eq!(
+            state, expected,
+            "\nActual:\n{}\nExpected:\n{}",
+            state, expected
+        );
+    }
+} // mod tests
