@@ -1,17 +1,19 @@
 extern crate env_logger;
 extern crate log;
 
+use takoyaki::engine::game;
 use takoyaki::engine::{
     board::{self, Board},
     card::{self, Card},
-    game::{self, Action},
-    player::Player,
     state::{self, PlayerState, State},
 };
+use takoyaki::players::random::RandomPlayer;
+
+use takoyaki::players::*;
 
 use clap::Parser;
 use log::*;
-use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
+pub use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
 
 #[derive(Parser, Debug)]
 #[clap(about)]
@@ -84,35 +86,6 @@ fn run<'a, 'c: 'a>(
         info!("State is updated ->: {}", state);
         info!("Player state: {}", player_state);
         info!("Opponent state: {}", opponent_state);
-    }
-}
-
-// TODO: Move to a different file/module.
-struct RandomPlayer {
-    rng: ThreadRng,
-}
-
-impl RandomPlayer {
-    pub fn new() -> RandomPlayer {
-        RandomPlayer { rng: thread_rng() }
-    }
-}
-
-impl Player for RandomPlayer {
-    fn set_board(&mut self, _board: &Board) {}
-
-    fn get_deck<'a>(&mut self, available_cards: &[&'a Card]) -> Vec<&'a Card> {
-        available_cards[0..15].to_vec()
-    }
-
-    fn need_redeal_hands(&mut self, _dealed_cards: &[&Card]) -> bool {
-        self.rng.gen_bool(0.5)
-    }
-
-    fn get_action<'a>(&mut self, _state: &State, player_state: &'a PlayerState) -> Action<'a> {
-        let action = Action::Pass(player_state.get_hands()[0]);
-        // todo!("Choose a random action from valid options.");
-        action
     }
 }
 

@@ -1,10 +1,13 @@
-use super::{
+pub mod random;
+
+use crate::engine::{
     board::Board,
     card::Card,
     game::Action,
     state::{PlayerState, State},
 };
 
+/// The base class for all player implementations.
 pub trait Player {
     fn set_board(&mut self, board: &Board);
 
