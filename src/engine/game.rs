@@ -47,7 +47,7 @@ impl<'a> Action<'a> {
     pub fn get_card_card_position(&self) -> (&Card, &CardPosition) {
         match self {
             Action::Pass(_) => panic!("Tried to get CardPosition from Action::Pass"),
-            Action::Put(c, card_position) => (c, &card_position),
+            Action::Put(c, card_position) => (c, card_position),
         }
     }
 

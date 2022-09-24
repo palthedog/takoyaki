@@ -1,10 +1,10 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{cmp::Ordering, collections::HashMap, fmt::Display};
 
 use log::*;
 
 use super::{
     board::{Board, BoardCell, BoardPosition},
-    card::{Card, CardCell, CardCellType},
+    card::{Card, CardCell},
 };
 use super::{
     card::CardPosition,
@@ -13,7 +13,6 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct PlayerState<'a> {
-    action_history: Vec<Action<'a>>,
     hands: Vec<&'a Card>,
     deck: Vec<&'a Card>,
 }
@@ -21,7 +20,6 @@ pub struct PlayerState<'a> {
 impl<'a> PlayerState<'a> {
     pub fn new(hands: &[&'a Card], deck: &[&'a Card]) -> PlayerState<'a> {
         PlayerState {
-            action_history: vec![],
             hands: hands.to_vec(),
             deck: deck.to_vec(),
         }
@@ -76,7 +74,7 @@ pub struct State {
     pub opponent_special_count: u32,
 }
 
-impl<'a> State {
+impl State {
     pub fn new(
         board: Board,
         turn: u32,
@@ -92,7 +90,7 @@ impl<'a> State {
     }
 }
 
-impl<'a> Display for State {
+impl Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "turn: {}\n{}", self.turn + 1, self.board)
     }
@@ -104,14 +102,14 @@ pub fn update_player_state(player_state: &mut PlayerState, action: &Action) {
 }
 
 pub fn update_state(state: &mut State, player_action: &Action, opponent_action: &Action) {
-    if !is_valid_action(&state.board, PlayerId::Player, &player_action) {
+    if !is_valid_action(&state.board, PlayerId::Player, player_action) {
         error!(
             "Player's action is invalid: board: {:?}\n action: {:?}",
             state.board, player_action
         );
         todo!("Player should lose");
     }
-    if !is_valid_action(&state.board, PlayerId::Opponent, &opponent_action) {
+    if !is_valid_action(&state.board, PlayerId::Opponent, opponent_action) {
         error!(
             "Opponent's action is invalid: board: {:?}\n action: {:?}",
             state.board, opponent_action
@@ -146,13 +144,17 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
             let priority: u32 = *priorities
                 .get(&board_pos)
                 .unwrap_or(&CardCell::PRIORITY_MAX);
-            if priority > cell.priority {
-                let fill = cell.cell_type.to_board_cell(PlayerId::Opponent);
-                debug!("Filling {} at {}", board_pos, fill);
-                state.board.put_cell(board_pos, fill);
-            } else if priority == cell.priority {
-                debug!("Filling {} at {}", board_pos, BoardCell::Wall);
-                state.board.put_cell(board_pos, BoardCell::Wall);
+            match priority.cmp(&cell.priority) {
+                Ordering::Greater => {
+                    let fill = cell.cell_type.to_board_cell(PlayerId::Opponent);
+                    debug!("Filling {} at {}", board_pos, fill);
+                    state.board.put_cell(board_pos, fill);
+                }
+                Ordering::Equal => {
+                    debug!("Filling {} at {}", board_pos, BoardCell::Wall);
+                    state.board.put_cell(board_pos, BoardCell::Wall);
+                }
+                Ordering::Less => (),
             }
         }
     }
@@ -161,7 +163,7 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
 pub fn is_valid_action(board: &Board, player_id: PlayerId, action: &Action) -> bool {
     match action {
         Action::Pass(_) => true,
-        Action::Put(card, pos) => check_action_put(board, player_id, card, &pos),
+        Action::Put(card, pos) => check_action_put(board, player_id, card, pos),
     }
 }
 
@@ -184,7 +186,7 @@ fn check_action_put(
 fn has_conflict(board: &Board, card: &Card, card_position: &CardPosition) -> bool {
     let special = card_position.special;
 
-    for (board_pos, &cell) in card.get_putting_cells(card_position) {
+    for (board_pos, &_cell) in card.get_putting_cells(card_position) {
         let board_cell = board.get_cell(board_pos);
         let conflict = match (board_cell, special) {
             (crate::engine::board::BoardCell::None, _) => false,

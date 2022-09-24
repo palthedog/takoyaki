@@ -110,9 +110,10 @@ impl Player for RandomPlayer {
         self.rng.gen_bool(0.5)
     }
 
-    fn get_action<'a>(&mut self, state: &State, player_state: &'a PlayerState) -> Action<'a> {
-        todo!("Choose a random action from valid options.");
-        Action::Pass(player_state.get_hands()[0])
+    fn get_action<'a>(&mut self, _state: &State, player_state: &'a PlayerState) -> Action<'a> {
+        let action = Action::Pass(player_state.get_hands()[0]);
+        // todo!("Choose a random action from valid options.");
+        action
     }
 }
 
@@ -121,7 +122,7 @@ fn main() {
 
     let args = Args::parse();
     let all_cards = card::load_cards(&args.card_dir);
-    let all_card_refs: Vec<&Card> = all_cards.iter().map(|c| c).collect();
+    let all_card_refs: Vec<&Card> = all_cards.iter().collect();
 
     all_cards.iter().for_each(|c| info!("{}", c));
 
