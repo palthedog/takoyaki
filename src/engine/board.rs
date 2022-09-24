@@ -90,6 +90,50 @@ impl Board {
         self.cells[y][x]
     }
 
+    pub fn count_surrounded_special_ink(&self) -> (u32, u32) {
+        let mut player_cnt = 0;
+        let mut opponent_cnt = 0;
+        let height = self.cells.len();
+        let width = self.cells[0].len();
+        for y in 0..height {
+            for x in 0..width {
+                let position = BoardPosition {
+                    x: x as i32,
+                    y: y as i32,
+                };
+                if let BoardCell::Special(player_id) = self.get_cell(position) {
+                    if !self.is_surrounded(&position) {
+                        continue;
+                    }
+                    match player_id {
+                        PlayerId::Player => player_cnt += 1,
+                        PlayerId::Opponent => opponent_cnt += 1,
+                    }
+                }
+            }
+        }
+        (player_cnt, opponent_cnt)
+    }
+
+    fn is_surrounded(&self, center_position: &BoardPosition) -> bool {
+        #[rustfmt::skip]
+        const AROUND_DIFF: [(i32, i32); 8] = [
+            (-1, -1),  (0, -1),  (1, -1),
+            (-1,  0),/*(0,  0),*/(1,  0),
+            (-1,  1),  (0,  1),  (1,  1),
+        ];
+        for diff in AROUND_DIFF {
+            let around_pos = BoardPosition {
+                x: center_position.x + diff.0,
+                y: center_position.y + diff.1,
+            };
+            if self.get_cell(around_pos).is_none() {
+                return false;
+            }
+        }
+        true
+    }
+
     pub fn put_cell(&mut self, position: BoardPosition, cell: BoardCell) {
         let x = position.x;
         let y = position.y;

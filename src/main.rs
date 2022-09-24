@@ -63,7 +63,6 @@ fn run<'a, 'c: 'a>(
     let mut player_state = deal_hands(&mut rng, all_cards, player);
     let mut opponent_state = deal_hands(&mut rng, all_cards, opponent);
     info!("Player states initialized");
-    // TODO: Implement shorter display format for PlayerState
     info!("player: {}\nopponent: {}", player_state, opponent_state);
     let mut state = State::new(board.clone(), 0, 0, 0);
     for turn in 0..game::TURN_COUNT {

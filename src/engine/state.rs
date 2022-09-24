@@ -1,6 +1,7 @@
 use std::{cmp::Ordering, collections::HashMap, fmt::Display};
 
 use log::*;
+use more_asserts::*;
 
 use super::{
     board::{Board, BoardCell, BoardPosition},
@@ -92,7 +93,13 @@ impl State {
 
 impl Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "turn: {}\n{}", self.turn + 1, self.board)
+        writeln!(f, "Turn: {}", self.turn + 1)?;
+        writeln!(
+            f,
+            "Special: player: {}, opponent: {}",
+            self.player_special_count, self.opponent_special_count
+        )?;
+        write!(f, "{}", self.board)
     }
 }
 
@@ -103,21 +110,31 @@ pub fn update_player_state(player_state: &mut PlayerState, action: &Action) {
 
 pub fn update_state(state: &mut State, player_action: &Action, opponent_action: &Action) {
     if !is_valid_action(&state.board, PlayerId::Player, player_action) {
-        error!(
-            "Player's action is invalid: board: {:?}\n action: {:?}",
-            state.board, player_action
-        );
         todo!("Player should lose");
     }
     if !is_valid_action(&state.board, PlayerId::Opponent, opponent_action) {
-        error!(
-            "Opponent's action is invalid: board: {:?}\n action: {:?}",
-            state.board, opponent_action
-        );
         todo!("Opponent should lose");
     }
 
+    // Activated special ink count
+    let activated_cell_cnts = state.board.count_surrounded_special_ink();
+
     fill_cells(state, player_action, opponent_action);
+
+    let activated_cell_cnts_later = state.board.count_surrounded_special_ink();
+
+    assert_le!(activated_cell_cnts.0, activated_cell_cnts_later.0);
+    assert_le!(activated_cell_cnts.1, activated_cell_cnts_later.1);
+
+    state.player_special_count += activated_cell_cnts_later.0 - activated_cell_cnts.0;
+    if player_action.is_pass() {
+        state.player_special_count += 1;
+    }
+
+    state.opponent_special_count += activated_cell_cnts_later.1 - activated_cell_cnts.1;
+    if opponent_action.is_pass() {
+        state.opponent_special_count += 1;
+    }
 
     warn!("TODO: Check special inks and update special points.");
     state.turn += 1
@@ -880,10 +897,6 @@ mod tests {
         let card = new_test_card(&[
             "=*=",
         ]);
-        #[rustfmt::skip]
-        let card_large = new_test_card(&[
-            "=*=",
-        ]);
 
         update_state(
             &mut state,
@@ -897,7 +910,7 @@ mod tests {
                 },
             ),
             &Action::Put(
-                &card_large,
+                &card,
                 CardPosition {
                     x: 3,
                     y: 2,
@@ -918,6 +931,185 @@ mod tests {
             "#######"],
             1,
             0,
+            0
+        );
+        assert_eq!(
+            state, expected,
+            "\nActual:\n{}\nExpected:\n{}",
+            state, expected
+        );
+    }
+
+    #[test]
+    fn test_update_state_pass() {
+        init();
+
+        #[rustfmt::skip]
+        let mut state = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#.....#",
+            "#..P..#",
+            "#######"],
+            0,
+            0,
+            0
+        );
+        #[rustfmt::skip]
+        let card = new_test_card(&[
+            "=*=",
+        ]);
+
+        update_state(
+            &mut state,
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 2,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+            &Action::Pass(&card),
+        );
+
+        // Opponent used special attack.
+        // The conflicted cell should become a wall.
+        #[rustfmt::skip]
+        let expected = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#pPp..#",
+            "#..P..#",
+            "#######"],
+            1,
+            0,
+            1 // Passed player earned a one special point.
+        );
+        assert_eq!(
+            state, expected,
+            "\nActual:\n{}\nExpected:\n{}",
+            state, expected
+        );
+    }
+
+    #[test]
+    fn test_update_state_surround_special_ink() {
+        init();
+
+        #[rustfmt::skip]
+        let mut state = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#.....#",
+            "#..P..#",
+            "#######"],
+            0,
+            0,
+            0
+        );
+        #[rustfmt::skip]
+        let card = new_test_card(&[
+            "= =",
+            "===",
+            "= =",
+        ]);
+
+        update_state(
+            &mut state,
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 2,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+            &Action::Pass(&card),
+        );
+
+        // Opponent used special attack.
+        // The conflicted cell should become a wall.
+        #[rustfmt::skip]
+        let expected = new_test_state(&[
+            "#######",
+            "#.pOp.#",
+            "#.ppp.#",
+            "#.pPp.#",
+            "#######"],
+            1,
+            1, // Player has a surrounded special ink @ [33]
+            2 // Passed opponent earned one more special point.
+        );
+        assert_eq!(
+            state, expected,
+            "\nActual:\n{}\nExpected:\n{}",
+            state, expected
+        );
+    }
+
+    #[test]
+    fn test_update_state_new_special_ink_surrounded() {
+        init();
+
+        #[rustfmt::skip]
+        let mut state = new_test_state(&[
+            "#######",
+            "#..O..#",
+            "#.....#",
+            "#..P..#",
+            "#######"],
+            0,
+            0,
+            0
+        );
+        #[rustfmt::skip]
+        let card = new_test_card(&[
+            " *",
+            " =",
+            "==",
+        ]);
+        #[rustfmt::skip]
+        let card2 = new_test_card(&[
+            "=",
+            "==",
+        ]);
+
+        update_state(
+            &mut state,
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 4,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+            &Action::Put(
+                &card2,
+                CardPosition {
+                    x: 4,
+                    y: 1,
+                    rotation: Rotation::Up,
+                    special: false,
+                },
+            ),
+        );
+
+        // Opponent used special attack.
+        // The conflicted cell should become a wall.
+        #[rustfmt::skip]
+        let expected = new_test_state(&[
+            "#######",
+            "#..OoP#",
+            "#...oo#",
+            "#..Ppp#",
+            "#######"],
+            1,
+            1, // Player has a surrounded special ink @ [33]
             0
         );
         assert_eq!(
