@@ -90,11 +90,16 @@ impl Board {
         self.cells[y][x]
     }
 
-    pub fn count_surrounded_special_ink(&self) -> (u32, u32) {
-        let mut player_cnt = 0;
-        let mut opponent_cnt = 0;
+    pub fn get_size(&self) -> (i32, i32) {
         let height = self.cells.len();
         let width = self.cells[0].len();
+        (width as i32, height as i32)
+    }
+
+    pub fn count_surrounded_special_ink(&self) -> (i32, i32) {
+        let mut player_cnt = 0;
+        let mut opponent_cnt = 0;
+        let (width, height) = self.get_size();
         for y in 0..height {
             for x in 0..width {
                 let position = BoardPosition {

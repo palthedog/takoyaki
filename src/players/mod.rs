@@ -1,15 +1,16 @@
 pub mod random;
+pub mod utils;
 
 use crate::engine::{
     board::Board,
     card::Card,
-    game::Action,
+    game::{Action, PlayerId},
     state::{PlayerState, State},
 };
 
 /// The base class for all player implementations.
 pub trait Player {
-    fn set_board(&mut self, board: &Board);
+    fn init_game(&mut self, player_id: PlayerId, board: &Board);
 
     fn get_deck<'a>(&mut self, available_cards: &[&'a Card]) -> Vec<&'a Card>;
 

@@ -32,18 +32,18 @@ pub struct CardCell {
 
     /// It is used when both players put a cell on an exact same place.
     /// Lower one is prioritized.
-    pub priority: u32,
+    pub priority: i32,
 }
 
 impl CardCell {
-    pub const PRIORITY_MAX: u32 = 1000;
+    pub const PRIORITY_MAX: i32 = 1000;
 
     /// Calculate cell priority used when both players actions conflict
     /// (a same cell is going to be filled by both players on a same turn)
     ///   - Special block is more prioritized than normal ink.
     ///   - If same ink blocks conflict, a card with lower cost (number of cells) is prioritized.
     /// Note that special attack doesn't affect the priority.
-    fn calc_cell_priority(cell_type: &CardCellType, cell_count: u32) -> u32 {
+    fn calc_cell_priority(cell_type: &CardCellType, cell_count: i32) -> i32 {
         match cell_type {
             CardCellType::None => panic!(),
             CardCellType::Ink => cell_count + 128,
@@ -85,8 +85,8 @@ impl CardCellType {
 pub struct Card {
     id: u32,
     name: String,
-    cell_count: u32,
-    special_cost: u32,
+    cell_count: i32,
+    special_cost: i32,
     cells: HashMap<Rotation, HashMap<CardCellPosition, CardCell>>,
 }
 
@@ -99,7 +99,7 @@ impl Card {
         &self.name
     }
 
-    pub fn get_special_cost(&self) -> u32 {
+    pub fn get_special_cost(&self) -> i32 {
         self.special_cost
     }
 
@@ -193,7 +193,7 @@ pub fn load_card(card_path: &str) -> Card {
     reader
         .read_line(&mut cell_count)
         .expect("The card data doesn't contain cell count");
-    let cell_count: u32 = cell_count.trim().parse().unwrap_or_else(|e| {
+    let cell_count: i32 = cell_count.trim().parse().unwrap_or_else(|e| {
         panic!(
             "Failed to parse the cell count: {}\nGiven string: {}",
             e, cell_count
@@ -203,7 +203,7 @@ pub fn load_card(card_path: &str) -> Card {
     reader
         .read_line(&mut special_cost)
         .expect("Failed to read cost info.");
-    let special_cost: u32 = special_cost
+    let special_cost: i32 = special_cost
         .trim()
         .parse()
         .expect("Failed to parse the special cost");
@@ -215,14 +215,14 @@ pub fn load_card(card_path: &str) -> Card {
 pub fn load_card_from_lines(
     id: u32,
     name: String,
-    cell_count: u32,
-    special_cost: u32,
+    cell_count: i32,
+    special_cost: i32,
     lines: &[String],
 ) -> Card {
     let cells = read_cells(cell_count, lines);
     assert_eq!(
         cell_count,
-        cells.len() as u32,
+        cells.len() as i32,
         "The parsed cell count is different from the one in card data"
     );
 
@@ -244,7 +244,7 @@ pub fn load_card_from_lines(
     Card {
         id,
         name,
-        cell_count: cell_count as u32,
+        cell_count: cell_count as i32,
         special_cost,
         cells: cells_variations,
     }
@@ -292,7 +292,7 @@ fn rotate_card_cell(rotation: Rotation, cell: CardCell) -> CardCell {
     }
 }
 
-fn read_cells(cell_count: u32, lines: &[String]) -> Vec<CardCell> {
+fn read_cells(cell_count: i32, lines: &[String]) -> Vec<CardCell> {
     let mut card_cells: Vec<CardCell> = vec![];
     for (y, line) in lines.iter().enumerate() {
         for (x, cell_type) in line

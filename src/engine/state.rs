@@ -70,17 +70,17 @@ impl<'a> Display for PlayerState<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     pub board: Board,
-    pub turn: u32,
-    pub player_special_count: u32,
-    pub opponent_special_count: u32,
+    pub turn: i32,
+    pub player_special_count: i32,
+    pub opponent_special_count: i32,
 }
 
 impl State {
     pub fn new(
         board: Board,
-        turn: u32,
-        player_special_count: u32,
-        opponent_special_count: u32,
+        turn: i32,
+        player_special_count: i32,
+        opponent_special_count: i32,
     ) -> State {
         State {
             board,
@@ -104,15 +104,16 @@ impl Display for State {
 }
 
 pub fn update_player_state(player_state: &mut PlayerState, action: &Action) {
+    // update hands
     player_state.consume_card(action.get_consumed_card());
     player_state.draw_card();
 }
 
 pub fn update_state(state: &mut State, player_action: &Action, opponent_action: &Action) {
-    if !is_valid_action(&state.board, PlayerId::Player, player_action) {
+    if !is_valid_action(state, PlayerId::Player, player_action) {
         todo!("Player should lose");
     }
-    if !is_valid_action(&state.board, PlayerId::Opponent, opponent_action) {
+    if !is_valid_action(state, PlayerId::Opponent, opponent_action) {
         todo!("Opponent should lose");
     }
 
@@ -126,29 +127,36 @@ pub fn update_state(state: &mut State, player_action: &Action, opponent_action: 
     assert_le!(activated_cell_cnts.0, activated_cell_cnts_later.0);
     assert_le!(activated_cell_cnts.1, activated_cell_cnts_later.1);
 
+    maybe_consume_special_points(&mut state.player_special_count, player_action);
     state.player_special_count += activated_cell_cnts_later.0 - activated_cell_cnts.0;
     if player_action.is_pass() {
         state.player_special_count += 1;
     }
 
+    maybe_consume_special_points(&mut state.opponent_special_count, opponent_action);
     state.opponent_special_count += activated_cell_cnts_later.1 - activated_cell_cnts.1;
     if opponent_action.is_pass() {
         state.opponent_special_count += 1;
     }
-
-    warn!("TODO: Check special inks and update special points.");
     state.turn += 1
 }
 
+fn maybe_consume_special_points(special_points: &mut i32, action: &Action) {
+    if let Action::Put(card, card_position) = action {
+        if card_position.special {
+            *special_points -= card.get_special_cost();
+        }
+    }
+}
+
 fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Action) {
-    let mut priorities: HashMap<BoardPosition, u32> = HashMap::new();
+    let mut priorities: HashMap<BoardPosition, i32> = HashMap::new();
 
     // Filling player's cell
     if let Action::Put(card, card_position) = player_action {
         for (board_pos, &cell) in card.get_putting_cells(card_position) {
             // Modify board
             let fill = cell.cell_type.to_board_cell(PlayerId::Player);
-            debug!("Filling {} at {}", board_pos, fill);
             state.board.put_cell(board_pos, fill);
             // Remember the priority
             priorities.insert(board_pos, cell.priority);
@@ -158,17 +166,15 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
     if let Action::Put(card, card_position) = opponent_action {
         for (board_pos, &cell) in card.get_putting_cells(card_position) {
             // Modify board
-            let priority: u32 = *priorities
+            let priority: i32 = *priorities
                 .get(&board_pos)
                 .unwrap_or(&CardCell::PRIORITY_MAX);
             match priority.cmp(&cell.priority) {
                 Ordering::Greater => {
                     let fill = cell.cell_type.to_board_cell(PlayerId::Opponent);
-                    debug!("Filling {} at {}", board_pos, fill);
                     state.board.put_cell(board_pos, fill);
                 }
                 Ordering::Equal => {
-                    debug!("Filling {} at {}", board_pos, BoardCell::Wall);
                     state.board.put_cell(board_pos, BoardCell::Wall);
                 }
                 Ordering::Less => (),
@@ -177,24 +183,39 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
     }
 }
 
-pub fn is_valid_action(board: &Board, player_id: PlayerId, action: &Action) -> bool {
+pub fn is_valid_action(state: &State, player_id: PlayerId, action: &Action) -> bool {
     match action {
         Action::Pass(_) => true,
-        Action::Put(card, pos) => check_action_put(board, player_id, card, pos),
+        Action::Put(card, pos) => check_action_put(state, player_id, card, pos),
     }
 }
 
 fn check_action_put(
-    board: &Board,
+    state: &State,
     player_id: PlayerId,
     card: &Card,
     position: &CardPosition,
 ) -> bool {
-    if has_conflict(board, card, position) {
+    if position.special {
+        match player_id {
+            PlayerId::Player => {
+                if state.player_special_count < card.get_special_cost() {
+                    return false;
+                }
+            }
+            PlayerId::Opponent => {
+                if state.opponent_special_count < card.get_special_cost() {
+                    return false;
+                }
+            }
+        }
+    }
+
+    if has_conflict(&state.board, card, position) {
         return false;
     }
 
-    if !has_touching_point(board, player_id, card, position) {
+    if !has_touching_point(&state.board, player_id, card, position) {
         return false;
     }
     true
@@ -271,9 +292,9 @@ mod tests {
 
     fn new_test_state(
         lines: &[&str],
-        turn: u32,
-        player_special_count: u32,
-        opponent_special_count: u32,
+        turn: i32,
+        player_special_count: i32,
+        opponent_special_count: i32,
     ) -> State {
         State::new(
             new_test_board(lines),
@@ -289,17 +310,32 @@ mod tests {
     }
 
     fn new_test_card(lines: &[&str]) -> crate::engine::card::Card {
+        // Using a huge special cost to prevent test codes accidentally
+        // use a special attack.
+        new_test_card_with_special_cost(lines, 42)
+    }
+
+    fn new_test_card_with_special_cost(
+        lines: &[&str],
+        special_cost: i32,
+    ) -> crate::engine::card::Card {
         let lines: Vec<String> = lines.iter().map(|s| String::from(*s)).collect();
-        let cell_cnt: u32 = lines
+        let cell_cnt: i32 = lines
             .iter()
             .map(|line| {
                 line.as_bytes()
                     .iter()
                     .filter(|&ch| *ch == b'=' || *ch == b'*')
-                    .count() as u32
+                    .count() as i32
             })
             .sum();
-        card::load_card_from_lines(42, String::from("test card"), cell_cnt, 42, &lines)
+        card::load_card_from_lines(
+            42,
+            String::from("test card"),
+            cell_cnt,
+            special_cost,
+            &lines,
+        )
     }
 
     #[test]
@@ -307,16 +343,16 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let board = new_test_board(&[
+        let state = new_test_state(&[
             "########",
             "#...P..#",
             "########"
-        ]);
+        ], 0, 0, 0);
         let card = new_test_card(&["==="]);
 
         // NO conflict
         assert!(is_valid_action(
-            &board,
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -331,7 +367,7 @@ mod tests {
 
         // DO conflict with wall
         assert!(!is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -346,7 +382,7 @@ mod tests {
 
         // DO conflict with ink
         assert!(!is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -365,15 +401,15 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let board = new_test_board(&[
+        let state = new_test_state(&[
             "######",
             "#P.o.#",
             "######"
-        ]);
+        ], 0, 0, 0);
         let card = new_test_card(&["==="]);
 
         assert!(!is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -392,16 +428,16 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let board = new_test_board(&[
+        let state = new_test_state(&[
             "########",
             "#.....P#",
             "########"
-        ]);
+        ], 0, 0, 0);
         let card = new_test_card(&["==="]);
 
         // NO touching point
         assert!(!is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -416,7 +452,7 @@ mod tests {
 
         // touch!
         assert!(is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -435,14 +471,14 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let board = new_test_board(&[
+        let state = new_test_state(&[
             "######",
             "##...#",
             "##.#.#",
             "#..##",
             "##p#",
             "####",
-        ]);
+        ], 0, 0, 0);
         #[rustfmt::skip]
         let card = new_test_card(&[
             "===",
@@ -452,7 +488,7 @@ mod tests {
         // Only Rotation::Right one should fit
 
         assert!(!is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -465,7 +501,7 @@ mod tests {
             )
         ));
         assert!(is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -478,7 +514,7 @@ mod tests {
             )
         ));
         assert!(!is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -491,7 +527,7 @@ mod tests {
             )
         ));
         assert!(!is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -510,22 +546,25 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let card = new_test_card(&[
+        let card = new_test_card_with_special_cost(&[
             "===",
-        ]);
+        ], 2);
 
         #[rustfmt::skip]
-        let board = new_test_board(&[
+        let state = new_test_state(&[
             "###",
             "#.#",
             "#.#",
             "#.#",
             "#p#",
             "###",
-        ]);
+        ],
+        0,
+        2, // player's special points
+        0);
         // Special attack can't be triggered without special ink on the board.
         assert!(!is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -539,17 +578,20 @@ mod tests {
         ));
 
         #[rustfmt::skip]
-        let board = new_test_board(&[
+        let state = new_test_state(&[
             "###",
             "#.#",
             "#.#",
             "#.#",
             "#P#",
             "###",
-        ]);
+        ],
+        0,
+        2,  // player's special points
+        0);
         // Now we have a special ink.
         assert!(is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -563,17 +605,20 @@ mod tests {
         ));
 
         #[rustfmt::skip]
-        let board = new_test_board(&[
+        let state = new_test_state(&[
             "###",
             "#o#",
             "#p#",
             "#.#",
             "#P#",
             "###",
-        ]);
+        ],
+        0,
+        2,
+        0);
         // Special attack can overdraw other ink
         assert!(is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -586,7 +631,7 @@ mod tests {
             )
         ));
         assert!(!is_valid_action(
-            &board.clone(),
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -600,17 +645,84 @@ mod tests {
         ));
 
         #[rustfmt::skip]
-        let board = new_test_board(&[
+        let state = new_test_state(&[
             "###",
             "#P#",
             "#.#",
             "#.#",
             "#P#",
             "###",
-        ]);
+        ],
+        0,
+        2,
+        0);
         // Special attack can NOT overdraw player's SPECIAL ink too
         assert!(!is_valid_action(
-            &board.clone(),
+            &state,
+            PlayerId::Player,
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 1,
+                    rotation: Rotation::Right,
+                    special: true
+                }
+            )
+        ));
+    }
+
+    #[test]
+    fn test_special_not_enough_points() {
+        init();
+
+        // this card requires 2 special points to use.
+        #[rustfmt::skip]
+        let card = new_test_card_with_special_cost(&[
+            "===",
+        ], 2);
+
+        #[rustfmt::skip]
+        let state = new_test_state(&[
+            "###",
+            "#.#",
+            "#.#",
+            "#.#",
+            "#P#",
+            "###",
+        ],
+        0,
+        2,  // player's special points
+        0);
+        // Now we have a special ink.
+        assert!(is_valid_action(
+            &state,
+            PlayerId::Player,
+            &Action::Put(
+                &card,
+                CardPosition {
+                    x: 1,
+                    y: 1,
+                    rotation: Rotation::Right,
+                    special: true
+                }
+            )
+        ));
+
+        #[rustfmt::skip]
+        let state = new_test_state(&[
+            "###",
+            "#.#",
+            "#.#",
+            "#.#",
+            "#P#",
+            "###",
+        ],
+        0,
+        1,  // player's special points is NOT enough.
+        0);
+        assert!(!is_valid_action(
+            &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
@@ -891,12 +1003,12 @@ mod tests {
             "#######"],
             0,
             0,
-            0
+            4
         );
         #[rustfmt::skip]
-        let card = new_test_card(&[
+        let card = new_test_card_with_special_cost(&[
             "=*=",
-        ]);
+        ], 1);
 
         update_state(
             &mut state,
@@ -931,7 +1043,7 @@ mod tests {
             "#######"],
             1,
             0,
-            0
+            3
         );
         assert_eq!(
             state, expected,

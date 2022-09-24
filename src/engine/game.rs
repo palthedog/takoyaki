@@ -3,7 +3,9 @@ use std::fmt::Display;
 use super::card::{Card, CardPosition};
 
 pub const HAND_SIZE: usize = 4;
-pub const TURN_COUNT: u32 = 12;
+pub const DECK_SIZE: usize = 15;
+
+pub const TURN_COUNT: i32 = 12;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerId {
@@ -17,6 +19,10 @@ pub enum Rotation {
     Right,
     Down,
     Left,
+}
+
+impl Rotation {
+    pub const VALUES: [Self; 4] = [Self::Up, Self::Right, Self::Down, Self::Left];
 }
 
 impl Display for Rotation {
@@ -57,5 +63,23 @@ impl<'a> Action<'a> {
 
     pub fn is_put(&self) -> bool {
         matches!(self, Action::Put(_, _))
+    }
+}
+
+impl<'a> Display for Action<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Action::Pass(card) => {
+                write!(f, "Pass({})", card.get_name())?;
+            }
+            Action::Put(card, card_position) => {
+                if card_position.special {
+                    write!(f, "Special!({}) @ {}", card.get_name(), card_position)?;
+                } else {
+                    write!(f, "Put({}) @ {}", card.get_name(), card_position)?;
+                }
+            }
+        }
+        Ok(())
     }
 }

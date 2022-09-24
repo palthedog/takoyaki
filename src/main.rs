@@ -1,7 +1,7 @@
 extern crate env_logger;
 extern crate log;
 
-use takoyaki::engine::game;
+use takoyaki::engine::game::{self, PlayerId};
 use takoyaki::engine::{
     board::{self, Board},
     card::{self, Card},
@@ -52,8 +52,8 @@ fn run<'a, 'c: 'a>(
 ) {
     let mut rng = thread_rng();
 
-    player.set_board(board);
-    opponent.set_board(board);
+    player.init_game(PlayerId::Player, board);
+    opponent.init_game(PlayerId::Opponent, board);
 
     // TODO: Support deck with more than 15 cards.
     // For now, get_deck must return 15 cards to respect the rule.
@@ -71,6 +71,9 @@ fn run<'a, 'c: 'a>(
         info!("Starting Turn {}", turn + 1);
         let player_action = player.get_action(&state, &player_state);
         let opponent_action = opponent.get_action(&state, &opponent_state);
+
+        info!("Player action: {}", player_action);
+        info!("Opponent action: {}", opponent_action);
 
         state::update_state(&mut state, &player_action, &opponent_action);
 
@@ -96,10 +99,10 @@ fn main() {
     let all_cards = card::load_cards(&args.card_dir);
     let all_card_refs: Vec<&Card> = all_cards.iter().collect();
 
-    all_cards.iter().for_each(|c| info!("{}", c));
+    all_cards.iter().for_each(|c| debug!("{}", c));
 
     let all_boards = board::load_boards(&args.board_dir);
-    all_boards.iter().for_each(|c| info!("{}", c));
+    all_boards.iter().for_each(|c| debug!("{}", c));
 
     let mut player = RandomPlayer::new();
     let mut opponent = RandomPlayer::new();
