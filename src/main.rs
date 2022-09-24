@@ -14,6 +14,7 @@ use takoyaki::players::*;
 use clap::Parser;
 use log::*;
 pub use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
+use takoyaki::players::utils::load_deck;
 
 #[derive(Parser, Debug)]
 #[clap(about)]
@@ -31,6 +32,13 @@ pub fn deal_hands<'a>(
     player: &mut impl Player,
 ) -> PlayerState<'a> {
     let mut deck_cards = player.get_deck(all_cards);
+    info!(
+        "Deck: {:#?}",
+        deck_cards
+            .iter()
+            .map(|card| card.get_name())
+            .collect::<Vec<&str>>()
+    );
 
     deck_cards.shuffle(rng);
 
@@ -104,8 +112,8 @@ fn main() {
     let all_boards = board::load_boards(&args.board_dir);
     all_boards.iter().for_each(|c| debug!("{}", c));
 
-    let mut player = RandomPlayer::new();
-    let mut opponent = RandomPlayer::new();
+    let mut player = RandomPlayer::new(load_deck("data/decks/starter"));
+    let mut opponent = RandomPlayer::new_with_random_deck();
 
     run(&all_boards[0], &all_card_refs, &mut player, &mut opponent);
 }

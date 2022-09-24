@@ -81,6 +81,30 @@ pub struct Board {
 }
 
 impl Board {
+    pub fn get_scores(&self) -> (i32, i32) {
+        let mut player_cnt = 0;
+        let mut opponent_cnt = 0;
+        let (width, height) = self.get_size();
+        for y in 0..height {
+            for x in 0..width {
+                let position = BoardPosition {
+                    x: x as i32,
+                    y: y as i32,
+                };
+                match self.get_cell(position) {
+                    BoardCell::Ink(PlayerId::Player) | BoardCell::Special(PlayerId::Player) => {
+                        player_cnt += 1;
+                    }
+                    BoardCell::Ink(PlayerId::Opponent) | BoardCell::Special(PlayerId::Opponent) => {
+                        opponent_cnt += 1;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        (player_cnt, opponent_cnt)
+    }
+
     pub fn get_cell(&self, position: BoardPosition) -> BoardCell {
         let x = position.x as usize;
         let y = position.y as usize;
@@ -161,6 +185,8 @@ impl std::fmt::Display for Board {
                 .for_each(|cell| write!(f, "{}", cell.to_char()).unwrap());
             writeln!(f).unwrap();
         });
+        let scores = self.get_scores();
+        writeln!(f, "Score: {}, {}", scores.0, scores.1)?;
         Ok(())
     }
 }

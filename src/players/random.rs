@@ -1,5 +1,7 @@
 use log::info;
-use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
+use rand::rngs::ThreadRng;
+use rand::seq::SliceRandom;
+use rand::{thread_rng, Rng};
 
 use crate::engine::{
     board::Board,
@@ -13,20 +15,28 @@ use super::{utils, Player};
 pub struct RandomPlayer {
     player_id: PlayerId,
     rng: ThreadRng,
+
+    deck_card_ids: Vec<u32>,
 }
 
 impl RandomPlayer {
-    pub fn new() -> Self {
+    pub fn new(deck_card_ids: Vec<u32>) -> Self {
         RandomPlayer {
             player_id: PlayerId::Player,
             rng: thread_rng(),
+            deck_card_ids,
         }
     }
-}
 
-impl Default for RandomPlayer {
-    fn default() -> Self {
-        Self::new()
+    pub fn new_with_random_deck() -> Self {
+        let mut rng = thread_rng();
+        let mut v: Vec<u32> = (1..=162).collect();
+        let (deck_card_ids, _) = v.partial_shuffle(&mut rng, game::DECK_SIZE);
+        RandomPlayer {
+            player_id: PlayerId::Player,
+            rng,
+            deck_card_ids: deck_card_ids.to_vec(),
+        }
     }
 }
 
@@ -36,10 +46,14 @@ impl Player for RandomPlayer {
     }
 
     fn get_deck<'a>(&mut self, available_cards: &[&'a Card]) -> Vec<&'a Card> {
-        // TODO: Provide a way to select cards.
+        if !self.deck_card_ids.is_empty() {
+            let cards = utils::ids_to_deck(&self.deck_card_ids, available_cards);
+            assert_eq!(cards.len(), game::DECK_SIZE);
+            return cards;
+        }
         let mut v = available_cards.to_vec();
         let (deck, _) = v.partial_shuffle(&mut self.rng, game::DECK_SIZE);
-        deck.to_vec()
+        return deck.to_vec();
     }
 
     fn need_redeal_hands(&mut self, _dealed_cards: &[&Card]) -> bool {

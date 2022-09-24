@@ -94,12 +94,13 @@ impl State {
 impl Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "Turn: {}", self.turn + 1)?;
+        write!(f, "{}", self.board)?;
         writeln!(
             f,
-            "Special: player: {}, opponent: {}",
+            "Special: {}, {}",
             self.player_special_count, self.opponent_special_count
         )?;
-        write!(f, "{}", self.board)
+        Ok(())
     }
 }
 
