@@ -155,7 +155,7 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
 
     // Filling player's cell
     if let Action::Put(card, card_position) = player_action {
-        for (board_pos, &cell) in card.get_putting_cells(card_position) {
+        for (board_pos, &cell) in card.get_cells_on_board_coord(card_position) {
             // Modify board
             let fill = cell.cell_type.to_board_cell(PlayerId::Player);
             state.board.put_cell(board_pos, fill);
@@ -165,7 +165,7 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
     }
 
     if let Action::Put(card, card_position) = opponent_action {
-        for (board_pos, &cell) in card.get_putting_cells(card_position) {
+        for (board_pos, &cell) in card.get_cells_on_board_coord(card_position) {
             // Modify board
             let priority: i32 = *priorities
                 .get(&board_pos)
@@ -187,11 +187,11 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
 pub fn is_valid_action(state: &State, player_id: PlayerId, action: &Action) -> bool {
     match action {
         Action::Pass(_) => true,
-        Action::Put(card, pos) => check_action_put(state, player_id, card, pos),
+        Action::Put(card, pos) => is_valid_action_put(state, player_id, card, pos),
     }
 }
 
-fn check_action_put(
+fn is_valid_action_put(
     state: &State,
     player_id: PlayerId,
     card: &Card,
@@ -225,14 +225,14 @@ fn check_action_put(
 fn has_conflict(board: &Board, card: &Card, card_position: &CardPosition) -> bool {
     let special = card_position.special;
 
-    for (board_pos, &_cell) in card.get_putting_cells(card_position) {
+    for (board_pos, &_cell) in card.get_cells_on_board_coord(card_position) {
         let board_cell = board.get_cell(board_pos);
         let conflict = match (board_cell, special) {
-            (crate::engine::board::BoardCell::None, _) => false,
-            (crate::engine::board::BoardCell::Wall, _) => true,
-            (crate::engine::board::BoardCell::Ink(_), true) => false,
-            (crate::engine::board::BoardCell::Ink(_), false) => true,
-            (crate::engine::board::BoardCell::Special(_), _) => true,
+            (BoardCell::None, _) => false,
+            (BoardCell::Wall, _) => true,
+            (BoardCell::Ink(_), true) => false,
+            (BoardCell::Ink(_), false) => true,
+            (BoardCell::Special(_), _) => true,
         };
         if conflict {
             trace!(
@@ -266,12 +266,10 @@ fn has_touching_point(
                 x: card_position.x + cell_pos.x + diff.0,
                 y: card_position.y + cell_pos.y + diff.1,
             };
-            trace!("  board pos: {}", board_pos);
-
             let board_cell = board.get_cell(board_pos);
             let touching = match (board_cell, special) {
-                (crate::engine::board::BoardCell::Ink(pid), false) => player_id == pid,
-                (crate::engine::board::BoardCell::Special(pid), _) => player_id == pid,
+                (BoardCell::Ink(pid), false) => player_id == pid,
+                (BoardCell::Special(pid), _) => player_id == pid,
                 _ => false,
             };
             if touching {

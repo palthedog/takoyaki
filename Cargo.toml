@@ -12,3 +12,7 @@ log = "0.4.17"
 more-asserts = "0.3.0"
 rand = "0.8.5"
 textwrap = "0.15.1"
+
+[profile.release]
+# Enable only when you use profiler.
+debug = 1

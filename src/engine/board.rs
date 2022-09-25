@@ -78,6 +78,9 @@ pub struct Board {
     id: u32,
     name: String,
     cells: Vec<Vec<BoardCell>>,
+
+    width: i32,
+    height: i32,
 }
 
 impl Board {
@@ -106,18 +109,16 @@ impl Board {
     }
 
     pub fn get_cell(&self, position: BoardPosition) -> BoardCell {
-        let x = position.x as usize;
-        let y = position.y as usize;
-        if y >= self.cells.len() || x >= self.cells.get(y).unwrap().len() {
+        let x = position.x;
+        let y = position.y;
+        if x < 0 || y < 0 || y >= self.height || x >= self.width {
             return BoardCell::Wall;
         }
-        self.cells[y][x]
+        self.cells[y as usize][x as usize]
     }
 
     pub fn get_size(&self) -> (i32, i32) {
-        let height = self.cells.len();
-        let width = self.cells[0].len();
-        (width as i32, height as i32)
+        (self.width, self.height)
     }
 
     pub fn count_surrounded_special_ink(&self) -> (i32, i32) {
@@ -167,10 +168,7 @@ impl Board {
         let x = position.x;
         let y = position.y;
         assert!(
-            y >= 0
-                || x >= 0
-                || y < self.cells.len() as i32
-                || x < self.cells.get(y as usize).unwrap().len() as i32,
+            y >= 0 || x >= 0 || y < self.height as i32 || x < self.width as i32,
             "Cannot update a cell at out side of the board"
         );
         self.cells[y as usize][x as usize] = cell;
@@ -231,7 +229,15 @@ pub fn load_board(board_path: &str) -> Board {
 
 pub fn load_board_from_lines(id: u32, name: String, lines: &[String]) -> Board {
     let cells = read_cells(lines);
-    Board { id, name, cells }
+    let width: i32 = cells[0].len() as i32;
+    let height: i32 = cells.len() as i32;
+    Board {
+        id,
+        name,
+        cells,
+        width,
+        height,
+    }
 }
 
 fn read_cells(lines: &[String]) -> Vec<Vec<BoardCell>> {

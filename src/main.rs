@@ -133,10 +133,6 @@ fn main() {
     let mut opponent_won_cnt = 0;
     let mut draw_cnt = 0;
     for n in 0..args.play_cnt {
-        if n % 100 == 0 {
-            println!("Battle #{}", n);
-            print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
-        }
         let (p, o) = run(&all_boards[0], &all_card_refs, &mut player, &mut opponent);
         match p.cmp(&o) {
             std::cmp::Ordering::Less => {
@@ -152,6 +148,12 @@ fn main() {
                 player_won_cnt += 1;
             }
         }
+        if n % 100 == 0 {
+            println!("Battle #{}", n);
+            print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
+        }
     }
+
+    println!("\n* All battles have finished");
     print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
 }

@@ -107,7 +107,7 @@ impl Card {
         self.cells.get(&rotation).unwrap()
     }
 
-    pub fn get_putting_cells<'a>(
+    pub fn get_cells_on_board_coord<'a>(
         &'a self,
         card_position: &'a CardPosition,
     ) -> impl Iterator<Item = (BoardPosition, &'a CardCell)> + 'a {
@@ -122,11 +122,11 @@ impl Card {
         })
     }
 
-    pub fn calculate_width(&self, rotation: Rotation) -> i32 {
+    fn calculate_width(&self, rotation: Rotation) -> i32 {
         self.get_cells(rotation).keys().map(|p| p.x).max().unwrap() + 1
     }
 
-    pub fn calculate_height(&self, rotation: Rotation) -> i32 {
+    fn calculate_height(&self, rotation: Rotation) -> i32 {
         self.get_cells(rotation).keys().map(|p| p.y).max().unwrap() + 1
     }
 }
