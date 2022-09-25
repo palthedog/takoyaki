@@ -22,9 +22,11 @@ pub fn list_valid_actions<'a>(
     let (width, height) = state.board.get_size();
     for card in cards {
         actions.push(Action::Pass(card));
-        for y in 0..height {
-            for x in 0..width {
-                for rotation in Rotation::VALUES {
+        for rotation in Rotation::VALUES {
+            let card_width = card.calculate_width(rotation);
+            let card_height = card.calculate_height(rotation);
+            for y in 1..height - card_height {
+                for x in 1..width - card_width {
                     for special in [false, true] {
                         let pos = CardPosition {
                             x,

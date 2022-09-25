@@ -31,12 +31,13 @@ impl Display for Rotation {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum PlayerType {
     Player,
     Opponent,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Action<'a> {
     Pass(&'a Card),
     Put(&'a Card, CardPosition),

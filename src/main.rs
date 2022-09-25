@@ -1,6 +1,7 @@
 extern crate env_logger;
 extern crate log;
 
+use rand_mt::Mt64;
 use takoyaki::engine::game::{self, PlayerId};
 use takoyaki::engine::{
     board::{self, Board},
@@ -13,7 +14,7 @@ use takoyaki::players::*;
 
 use clap::Parser;
 use log::*;
-pub use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
+pub use rand::{seq::SliceRandom, Rng};
 use takoyaki::players::utils::load_deck;
 
 #[derive(Parser, Debug)]
@@ -60,9 +61,8 @@ fn run<'a, 'c: 'a>(
     all_cards: &[&'c Card],
     player: &'a mut impl Player,
     opponent: &'a mut impl Player,
+    rng: &mut impl Rng,
 ) -> (i32, i32) {
-    let mut rng = thread_rng();
-
     player.init_game(PlayerId::Player, board);
     opponent.init_game(PlayerId::Opponent, board);
 
@@ -73,8 +73,8 @@ fn run<'a, 'c: 'a>(
     // MCTS.
     // Maybe we can just put all cards in `hands`?
 
-    let mut player_state = deal_hands(&mut rng, all_cards, player);
-    let mut opponent_state = deal_hands(&mut rng, all_cards, opponent);
+    let mut player_state = deal_hands(rng, all_cards, player);
+    let mut opponent_state = deal_hands(rng, all_cards, opponent);
     info!("Player states initialized");
     info!("player: {}\nopponent: {}", player_state, opponent_state);
     let mut state = State::new(board.clone(), 0, 0, 0);
@@ -126,14 +126,23 @@ fn main() {
     let all_boards = board::load_boards(&args.board_dir);
     all_boards.iter().for_each(|c| debug!("{}", c));
 
-    let mut player = RandomPlayer::new(load_deck("data/decks/starter"));
-    let mut opponent = RandomPlayer::new_with_random_deck();
+    // Use fixed seed for reproducible results.
+    let mut rng = Mt64::new(0x42);
+
+    let mut player = RandomPlayer::new(rng.next_u64(), load_deck("data/decks/starter"));
+    let mut opponent = RandomPlayer::new_with_random_deck(rng.next_u64());
 
     let mut player_won_cnt = 0;
     let mut opponent_won_cnt = 0;
     let mut draw_cnt = 0;
     for n in 0..args.play_cnt {
-        let (p, o) = run(&all_boards[0], &all_card_refs, &mut player, &mut opponent);
+        let (p, o) = run(
+            &all_boards[0],
+            &all_card_refs,
+            &mut player,
+            &mut opponent,
+            &mut rng,
+        );
         match p.cmp(&o) {
             std::cmp::Ordering::Less => {
                 debug!("Opponent win!");

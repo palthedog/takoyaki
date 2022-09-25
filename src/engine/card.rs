@@ -12,6 +12,7 @@ use super::{
 };
 
 use log::*;
+use more_asserts::assert_ge;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CardCellPosition {
@@ -122,11 +123,11 @@ impl Card {
         })
     }
 
-    fn calculate_width(&self, rotation: Rotation) -> i32 {
+    pub fn calculate_width(&self, rotation: Rotation) -> i32 {
         self.get_cells(rotation).keys().map(|p| p.x).max().unwrap() + 1
     }
 
-    fn calculate_height(&self, rotation: Rotation) -> i32 {
+    pub fn calculate_height(&self, rotation: Rotation) -> i32 {
         self.get_cells(rotation).keys().map(|p| p.y).max().unwrap() + 1
     }
 }
@@ -226,6 +227,9 @@ pub fn load_card_from_lines(
         "The parsed cell count is different from the one in card data"
     );
 
+    let width = cells.iter().map(|c| c.position.x).max().unwrap() + 1;
+    let height = cells.iter().map(|c| c.position.y).max().unwrap() + 1;
+
     let mut cells_variations: HashMap<Rotation, HashMap<CardCellPosition, CardCell>> =
         HashMap::new();
     for rot in [
@@ -236,7 +240,7 @@ pub fn load_card_from_lines(
     ]
     .iter()
     {
-        let rot_cells = rotate_card_cells(*rot, &cells);
+        let rot_cells = rotate_card_cells(*rot, &cells, width, height);
         cells_variations.insert(*rot, convert_to_cell_map(rot_cells));
     }
     assert_eq!(4, cells_variations.len());
@@ -250,13 +254,6 @@ pub fn load_card_from_lines(
     }
 }
 
-fn rotate_card_cells(rotation: Rotation, cells: &[CardCell]) -> Vec<CardCell> {
-    cells
-        .iter()
-        .map(|&c| rotate_card_cell(rotation, c))
-        .collect()
-}
-
 fn convert_to_cell_map(cells: Vec<CardCell>) -> HashMap<CardCellPosition, CardCell> {
     let mut cell_map: HashMap<CardCellPosition, CardCell> = HashMap::new();
     for cell in cells {
@@ -268,23 +265,37 @@ fn convert_to_cell_map(cells: Vec<CardCell>) -> HashMap<CardCellPosition, CardCe
     cell_map
 }
 
-fn rotate_card_cell(rotation: Rotation, cell: CardCell) -> CardCell {
+fn rotate_card_cells(
+    rotation: Rotation,
+    cells: &[CardCell],
+    width: i32,
+    height: i32,
+) -> Vec<CardCell> {
+    cells
+        .iter()
+        .map(|&c| rotate_card_cell(rotation, c, width, height))
+        .collect()
+}
+
+fn rotate_card_cell(rotation: Rotation, cell: CardCell, width: i32, height: i32) -> CardCell {
     let position = cell.position;
     let rotated_pos = match rotation {
         Rotation::Up => position,
         Rotation::Right => CardCellPosition {
-            x: -position.y,
+            x: -position.y + height - 1,
             y: position.x,
         },
         Rotation::Down => CardCellPosition {
-            x: -position.x,
-            y: -position.y,
+            x: -position.x + width - 1,
+            y: -position.y + height - 1,
         },
         Rotation::Left => CardCellPosition {
             x: position.y,
-            y: -position.x,
+            y: -position.x + width - 1,
         },
     };
+    assert_ge!(rotated_pos.x, 0);
+    assert_ge!(rotated_pos.y, 0);
 
     CardCell {
         position: rotated_pos,

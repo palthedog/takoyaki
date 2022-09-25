@@ -224,7 +224,6 @@ fn is_valid_action_put(
 
 fn has_conflict(board: &Board, card: &Card, card_position: &CardPosition) -> bool {
     let special = card_position.special;
-
     for (board_pos, &_cell) in card.get_cells_on_board_coord(card_position) {
         let board_cell = board.get_cell(board_pos);
         let conflict = match (board_cell, special) {
@@ -235,11 +234,6 @@ fn has_conflict(board: &Board, card: &Card, card_position: &CardPosition) -> boo
             (BoardCell::Special(_), _) => true,
         };
         if conflict {
-            trace!(
-                "A cell has conflict at: {:?}. cell type: {:?}",
-                board_pos,
-                board_cell
-            );
             return true;
         }
     }
@@ -259,12 +253,11 @@ fn has_touching_point(
         (-1,  1),  (0,  1),  (1,  1),
     ];
     let special = card_position.special;
-    let cells = card.get_cells(card_position.rotation);
-    for cell_pos in cells.keys() {
+    for (board_pos, &_cell) in card.get_cells_on_board_coord(card_position) {
         for diff in AROUND_DIFF {
             let board_pos = BoardPosition {
-                x: card_position.x + cell_pos.x + diff.0,
-                y: card_position.y + cell_pos.y + diff.1,
+                x: board_pos.x + diff.0,
+                y: board_pos.y + diff.1,
             };
             let board_cell = board.get_cell(board_pos);
             let touching = match (board_cell, special) {
@@ -471,12 +464,15 @@ mod tests {
 
         #[rustfmt::skip]
         let state = new_test_state(&[
-            "######",
-            "##...#",
-            "##.#.#",
-            "#..##",
-            "##p#",
-            "####",
+            "#########",
+            "####..###",
+            "####.####",
+            "#.##.####",
+            "#...P...#",
+            "####.##.#",
+            "####.####",
+            "###..####",
+            "#########",
         ], 0, 0, 0);
         #[rustfmt::skip]
         let card = new_test_card(&[
@@ -484,16 +480,14 @@ mod tests {
             "  ="
         ]);
 
-        // Only Rotation::Right one should fit
-
-        assert!(!is_valid_action(
+        assert!(is_valid_action(
             &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
                 CardPosition {
-                    x: 2,
-                    y: 1,
+                    x: 5,
+                    y: 4,
                     rotation: Rotation::Up,
                     special: false
                 }
@@ -505,33 +499,33 @@ mod tests {
             &Action::Put(
                 &card,
                 CardPosition {
-                    x: 2,
-                    y: 1,
+                    x: 3,
+                    y: 5,
                     rotation: Rotation::Right,
                     special: false
                 }
             )
         ));
-        assert!(!is_valid_action(
+        assert!(is_valid_action(
             &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
                 CardPosition {
-                    x: 2,
-                    y: 1,
+                    x: 1,
+                    y: 3,
                     rotation: Rotation::Down,
                     special: false
                 }
             )
         ));
-        assert!(!is_valid_action(
+        assert!(is_valid_action(
             &state,
             PlayerId::Player,
             &Action::Put(
                 &card,
                 CardPosition {
-                    x: 2,
+                    x: 4,
                     y: 1,
                     rotation: Rotation::Left,
                     special: false

@@ -1,7 +1,7 @@
 use log::info;
-use rand::rngs::ThreadRng;
 use rand::seq::SliceRandom;
-use rand::{thread_rng, Rng};
+use rand::Rng;
+use rand_mt::Mt64;
 
 use crate::engine::{
     board::Board,
@@ -14,22 +14,22 @@ use super::{utils, Player};
 
 pub struct RandomPlayer {
     player_id: PlayerId,
-    rng: ThreadRng,
+    rng: Mt64,
 
     deck_card_ids: Vec<u32>,
 }
 
 impl RandomPlayer {
-    pub fn new(deck_card_ids: Vec<u32>) -> Self {
+    pub fn new(seed: u64, deck_card_ids: Vec<u32>) -> Self {
         RandomPlayer {
             player_id: PlayerId::Player,
-            rng: thread_rng(),
+            rng: Mt64::new(seed),
             deck_card_ids,
         }
     }
 
-    pub fn new_with_random_deck() -> Self {
-        let mut rng = thread_rng();
+    pub fn new_with_random_deck(seed: u64) -> Self {
+        let mut rng = Mt64::new(seed);
         let mut v: Vec<u32> = (1..=162).collect();
         let (deck_card_ids, _) = v.partial_shuffle(&mut rng, game::DECK_SIZE);
         RandomPlayer {
@@ -70,7 +70,6 @@ impl Player for RandomPlayer {
         );
         info!("Got {} valid actions", actions_buffer.len());
         let index = self.rng.gen_range(0..actions_buffer.len());
-        let action: Action<'a> = actions_buffer.remove(index);
-        action
+        actions_buffer.remove(index)
     }
 }
