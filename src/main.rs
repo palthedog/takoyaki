@@ -24,6 +24,9 @@ struct Args {
 
     #[clap(long, value_parser, default_value_t = String::from("data/boards"))]
     board_dir: String,
+
+    #[clap(long, value_parser, default_value_t = 1)]
+    play_cnt: u32,
 }
 
 pub fn deal_hands<'a>(
@@ -57,7 +60,7 @@ fn run<'a, 'c: 'a>(
     all_cards: &[&'c Card],
     player: &'a mut impl Player,
     opponent: &'a mut impl Player,
-) {
+) -> (i32, i32) {
     let mut rng = thread_rng();
 
     player.init_game(PlayerId::Player, board);
@@ -98,6 +101,17 @@ fn run<'a, 'c: 'a>(
         info!("Player state: {}", player_state);
         info!("Opponent state: {}", opponent_state);
     }
+
+    state.board.get_scores()
+}
+
+fn print_rate(p_cnt: usize, o_cnt: usize, draw_cnt: usize) {
+    let total: f32 = (p_cnt + o_cnt + draw_cnt) as f32;
+    let player_won_ratio: f32 = p_cnt as f32 / total;
+    let opponent_won_ratio: f32 = o_cnt as f32 / total;
+    println!("Player won cnt: {} ({})", p_cnt, player_won_ratio);
+    println!("Opponent won cnt: {} ({})", o_cnt, opponent_won_ratio);
+    println!("Draw cnt: {}", draw_cnt);
 }
 
 fn main() {
@@ -115,5 +129,29 @@ fn main() {
     let mut player = RandomPlayer::new(load_deck("data/decks/starter"));
     let mut opponent = RandomPlayer::new_with_random_deck();
 
-    run(&all_boards[0], &all_card_refs, &mut player, &mut opponent);
+    let mut player_won_cnt = 0;
+    let mut opponent_won_cnt = 0;
+    let mut draw_cnt = 0;
+    for n in 0..args.play_cnt {
+        if n % 100 == 0 {
+            println!("Battle #{}", n);
+            print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
+        }
+        let (p, o) = run(&all_boards[0], &all_card_refs, &mut player, &mut opponent);
+        match p.cmp(&o) {
+            std::cmp::Ordering::Less => {
+                debug!("Opponent win!");
+                opponent_won_cnt += 1;
+            }
+            std::cmp::Ordering::Equal => {
+                debug!("Draw");
+                draw_cnt += 1;
+            }
+            std::cmp::Ordering::Greater => {
+                debug!("Player win!");
+                player_won_cnt += 1;
+            }
+        }
+    }
+    print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
 }
