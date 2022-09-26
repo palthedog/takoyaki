@@ -12,22 +12,30 @@ use takoyaki::players::random::RandomPlayer;
 
 use takoyaki::players::*;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use log::*;
 pub use rand::{seq::SliceRandom, Rng};
 use takoyaki::players::utils::load_deck;
 
 #[derive(Parser, Debug)]
-#[clap(about)]
-struct Args {
+struct Cli {
     #[clap(long, value_parser, default_value_t = String::from("data/cards"))]
     card_dir: String,
 
     #[clap(long, value_parser, default_value_t = String::from("data/boards"))]
     board_dir: String,
 
-    #[clap(long, value_parser, default_value_t = 1)]
-    play_cnt: u32,
+    #[clap(subcommand)]
+    command: Commands,
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    #[clap(arg_required_else_help = true)]
+    Rand {
+        #[clap(long, value_parser, default_value_t = 1)]
+        play_cnt: u32,
+    },
 }
 
 pub fn deal_hands<'a>(
@@ -105,27 +113,7 @@ fn run<'a, 'c: 'a>(
     state.board.get_scores()
 }
 
-fn print_rate(p_cnt: usize, o_cnt: usize, draw_cnt: usize) {
-    let total: f32 = (p_cnt + o_cnt + draw_cnt) as f32;
-    let player_won_ratio: f32 = p_cnt as f32 / total;
-    let opponent_won_ratio: f32 = o_cnt as f32 / total;
-    println!("Player won cnt: {} ({})", p_cnt, player_won_ratio);
-    println!("Opponent won cnt: {} ({})", o_cnt, opponent_won_ratio);
-    println!("Draw cnt: {}", draw_cnt);
-}
-
-fn main() {
-    env_logger::init();
-
-    let args = Args::parse();
-    let all_cards = card::load_cards(&args.card_dir);
-    let all_card_refs: Vec<&Card> = all_cards.iter().collect();
-
-    all_cards.iter().for_each(|c| debug!("{}", c));
-
-    let all_boards = board::load_boards(&args.board_dir);
-    all_boards.iter().for_each(|c| debug!("{}", c));
-
+fn run_rand(all_card_refs: &Vec<&Card>, all_boards: &Vec<Board>, play_cnt: u32) {
     // Use fixed seed for reproducible results.
     let mut rng = Mt64::new(0x42);
 
@@ -135,7 +123,7 @@ fn main() {
     let mut player_won_cnt = 0;
     let mut opponent_won_cnt = 0;
     let mut draw_cnt = 0;
-    for n in 0..args.play_cnt {
+    for n in 0..play_cnt {
         let (p, o) = run(
             &all_boards[0],
             &all_card_refs,
@@ -165,4 +153,30 @@ fn main() {
 
     println!("\n* All battles have finished");
     print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
+}
+
+fn print_rate(p_cnt: usize, o_cnt: usize, draw_cnt: usize) {
+    let total: f32 = (p_cnt + o_cnt + draw_cnt) as f32;
+    let player_won_ratio: f32 = p_cnt as f32 / total;
+    let opponent_won_ratio: f32 = o_cnt as f32 / total;
+    println!("Player won cnt: {} ({})", p_cnt, player_won_ratio);
+    println!("Opponent won cnt: {} ({})", o_cnt, opponent_won_ratio);
+    println!("Draw cnt: {}", draw_cnt);
+}
+
+fn main() {
+    env_logger::init();
+
+    let args = Cli::parse();
+    let all_cards = card::load_cards(&args.card_dir);
+    let all_card_refs: Vec<&Card> = all_cards.iter().collect();
+    all_cards.iter().for_each(|c| debug!("{}", c));
+    let all_boards = board::load_boards(&args.board_dir);
+    all_boards.iter().for_each(|c| debug!("{}", c));
+
+    match args.command {
+        Commands::Rand { play_cnt } => {
+            run_rand(&all_card_refs, &all_boards, play_cnt);
+        }
+    }
 }
