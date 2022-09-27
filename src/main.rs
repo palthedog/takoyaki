@@ -25,8 +25,9 @@ struct Cli {
     #[clap(long, value_parser, default_value_t = String::from("data/cards"))]
     card_dir: String,
 
-    #[clap(long, value_parser, default_value_t = String::from("data/boards"))]
-    board_dir: String,
+    /// a file path to a board file
+    #[clap(long, value_parser, default_value = "data/boards/0")]
+    board_path: PathBuf,
 
     #[clap(subcommand)]
     command: Commands,
@@ -148,7 +149,7 @@ fn card_ids_to_card_refs<'a>(all_cards: &'a HashMap<u32, Card>, card_ids: &[u32]
 
 fn run_rand(
     all_cards: &HashMap<u32, Card>,
-    all_boards: &[Board],
+    board: &Board,
     play_cnt: u32,
     player_deck_path: &Option<PathBuf>,
     opponent_deck_path: &Option<PathBuf>,
@@ -173,7 +174,7 @@ fn run_rand(
     let mut draw_cnt = 0;
     for n in 0..play_cnt {
         let (p, o) = run(
-            &all_boards[0],
+            board,
             &player_inventory_cards,
             &opponent_inventory_cards,
             &mut player,
@@ -218,8 +219,7 @@ fn main() {
     let args = Cli::parse();
     let all_cards = card::load_cards(&args.card_dir);
     all_cards.values().for_each(|c| debug!("{}", c));
-    let all_boards = board::load_boards(&args.board_dir);
-    all_boards.iter().for_each(|c| debug!("{}", c));
+    let board = board::load_board(&args.board_path);
 
     match args.command {
         Commands::Rand {
@@ -229,12 +229,12 @@ fn main() {
         } => {
             run_rand(
                 &all_cards,
-                &all_boards,
+                &board,
                 play_cnt,
                 &player_deck_path,
                 &opponent_deck_path,
             );
         }
-        Commands::TrainDeck { train_cnt: _ } => todo!(),
+        Commands::TrainDeck { train_cnt: _ } => {}
     }
 }

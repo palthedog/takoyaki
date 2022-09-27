@@ -2,7 +2,7 @@ use std::{
     fmt::{Display, Formatter},
     fs::{self, File},
     io::{BufRead, BufReader},
-    path::Path,
+    path::PathBuf,
 };
 
 use log::*;
@@ -196,28 +196,26 @@ pub fn load_boards(boards_dir: &str) -> Vec<Board> {
     for entry in fs::read_dir(boards_dir).expect("Couldn't open the board dir") {
         let dir = entry.unwrap();
         let path = dir.path();
-        let path = path.to_str().unwrap();
-
-        let board = load_board(path);
+        let board = load_board(&path);
         debug!("{}", board);
         boards.push(board);
     }
     boards
 }
 
-pub fn load_board(board_path: &str) -> Board {
-    debug!("loading {}", board_path);
+pub fn load_board(board_path: &PathBuf) -> Board {
+    debug!("loading {:?}", board_path);
 
-    let path = Path::new(board_path);
-    let board_id: u32 = path
+    let board_id: u32 = board_path
         .file_stem()
         .unwrap()
         .to_str()
         .unwrap()
         .parse::<u32>()
-        .unwrap_or_else(|_| panic!("Board file name should be a number but {:?}", path));
+        .unwrap_or_else(|_| panic!("Board file name should be a number but {:?}", board_path));
 
-    let file = File::open(board_path).unwrap_or_else(|_| panic!("Failed to open: {}", board_path));
+    let file =
+        File::open(board_path).unwrap_or_else(|_| panic!("Failed to open: {:?}", board_path));
     let mut reader = BufReader::new(file);
     let mut name: String = String::new();
     reader.read_line(&mut name).unwrap();
