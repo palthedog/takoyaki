@@ -118,6 +118,10 @@ fn run_rand(
     }
 
     println!("\n* All battles have finished");
+    println!(
+        "Used decks: p: {:?}, o: {:?}",
+        player_deck_path, opponent_deck_path
+    );
     print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
 }
 
