@@ -1,6 +1,9 @@
 extern crate env_logger;
 extern crate log;
 
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use rand_mt::Mt64;
 use takoyaki::engine::game::{self, PlayerId};
 use takoyaki::engine::{
@@ -12,7 +15,7 @@ use takoyaki::players::random::RandomPlayer;
 
 use takoyaki::players::*;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueHint};
 use log::*;
 pub use rand::{seq::SliceRandom, Rng};
 use takoyaki::players::utils::load_deck;
@@ -35,6 +38,28 @@ enum Commands {
     Rand {
         #[clap(long, value_parser, default_value_t = 1)]
         play_cnt: u32,
+
+        /// List of cards which the player can choose for their deck
+        #[clap(
+            short,
+            long,
+            value_parser,
+            value_hint=ValueHint::FilePath,
+        )]
+        player_deck_path: Option<PathBuf>,
+        /// List of cards which the opponnt can choose for their deck
+        #[clap(
+            short,
+            long,
+            value_parser,
+            value_hint=ValueHint::FilePath,
+        )]
+        opponent_deck_path: Option<PathBuf>,
+    },
+
+    TrainDeck {
+        #[clap(long, value_parser, default_value_t = 1)]
+        train_cnt: u32,
     },
 }
 
@@ -66,7 +91,8 @@ pub fn deal_hands<'a>(
 
 fn run<'a, 'c: 'a>(
     board: &'c Board,
-    all_cards: &[&'c Card],
+    player_inventory_cards: &[&'c Card],
+    opponent_inventory_cards: &[&'c Card],
     player: &'a mut impl Player,
     opponent: &'a mut impl Player,
     rng: &mut impl Rng,
@@ -81,8 +107,8 @@ fn run<'a, 'c: 'a>(
     // MCTS.
     // Maybe we can just put all cards in `hands`?
 
-    let mut player_state = deal_hands(rng, all_cards, player);
-    let mut opponent_state = deal_hands(rng, all_cards, opponent);
+    let mut player_state = deal_hands(rng, player_inventory_cards, player);
+    let mut opponent_state = deal_hands(rng, opponent_inventory_cards, opponent);
     info!("Player states initialized");
     info!("player: {}\nopponent: {}", player_state, opponent_state);
     let mut state = State::new(board.clone(), 0, 0, 0);
@@ -113,12 +139,34 @@ fn run<'a, 'c: 'a>(
     state.board.get_scores()
 }
 
-fn run_rand(all_card_refs: &Vec<&Card>, all_boards: &Vec<Board>, play_cnt: u32) {
+fn card_ids_to_card_refs<'a>(all_cards: &'a HashMap<u32, Card>, card_ids: &[u32]) -> Vec<&'a Card> {
+    card_ids
+        .iter()
+        .map(|id| all_cards.get(id).unwrap())
+        .collect()
+}
+
+fn run_rand(
+    all_cards: &HashMap<u32, Card>,
+    all_boards: &[Board],
+    play_cnt: u32,
+    player_deck_path: &Option<PathBuf>,
+    opponent_deck_path: &Option<PathBuf>,
+) {
     // Use fixed seed for reproducible results.
     let mut rng = Mt64::new(0x42);
 
-    let mut player = RandomPlayer::new(rng.next_u64(), load_deck("data/decks/starter"));
-    let mut opponent = RandomPlayer::new_with_random_deck(rng.next_u64());
+    let mut player = RandomPlayer::new(rng.next_u64());
+    let mut opponent = RandomPlayer::new(rng.next_u64());
+
+    let player_inventory_cards: Vec<&Card> = match player_deck_path {
+        Some(path) => card_ids_to_card_refs(all_cards, &load_deck(path)),
+        None => all_cards.values().collect(),
+    };
+    let opponent_inventory_cards: Vec<&Card> = match opponent_deck_path {
+        Some(path) => card_ids_to_card_refs(all_cards, &load_deck(path)),
+        None => all_cards.values().collect(),
+    };
 
     let mut player_won_cnt = 0;
     let mut opponent_won_cnt = 0;
@@ -126,7 +174,8 @@ fn run_rand(all_card_refs: &Vec<&Card>, all_boards: &Vec<Board>, play_cnt: u32) 
     for n in 0..play_cnt {
         let (p, o) = run(
             &all_boards[0],
-            &all_card_refs,
+            &player_inventory_cards,
+            &opponent_inventory_cards,
             &mut player,
             &mut opponent,
             &mut rng,
@@ -166,17 +215,26 @@ fn print_rate(p_cnt: usize, o_cnt: usize, draw_cnt: usize) {
 
 fn main() {
     env_logger::init();
-
     let args = Cli::parse();
     let all_cards = card::load_cards(&args.card_dir);
-    let all_card_refs: Vec<&Card> = all_cards.iter().collect();
-    all_cards.iter().for_each(|c| debug!("{}", c));
+    all_cards.values().for_each(|c| debug!("{}", c));
     let all_boards = board::load_boards(&args.board_dir);
     all_boards.iter().for_each(|c| debug!("{}", c));
 
     match args.command {
-        Commands::Rand { play_cnt } => {
-            run_rand(&all_card_refs, &all_boards, play_cnt);
+        Commands::Rand {
+            play_cnt,
+            player_deck_path,
+            opponent_deck_path,
+        } => {
+            run_rand(
+                &all_cards,
+                &all_boards,
+                play_cnt,
+                &player_deck_path,
+                &opponent_deck_path,
+            );
         }
+        Commands::TrainDeck { train_cnt: _ } => todo!(),
     }
 }

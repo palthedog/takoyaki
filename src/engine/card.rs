@@ -155,17 +155,17 @@ impl std::fmt::Display for Card {
     }
 }
 
-pub fn load_cards(cards_dir: &str) -> Vec<Card> {
+pub fn load_cards(cards_dir: &str) -> HashMap<u32, Card> {
     info!("Start loading card data from: {}", cards_dir);
 
-    let mut cards: Vec<Card> = vec![];
+    let mut cards: HashMap<u32, Card> = HashMap::new();
     for entry in fs::read_dir(cards_dir).expect("Couldn't open the card dir") {
         let dir = entry.unwrap();
         let path = dir.path();
         let path = path.to_str().unwrap();
         let card = load_card(path);
         debug!("{}", card);
-        cards.push(card);
+        cards.insert(card.get_id(), card);
     }
     cards
 }
