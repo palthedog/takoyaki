@@ -75,7 +75,6 @@ impl Display for BoardPosition {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Board {
-    id: u32,
     name: String,
     cells: Vec<Vec<BoardCell>>,
 
@@ -177,7 +176,7 @@ impl Board {
 
 impl std::fmt::Display for Board {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        writeln!(f, "{}: {}", self.id, self.name)?;
+        writeln!(f, "{}", self.name)?;
         self.cells.iter().for_each(|v| {
             v.iter()
                 .for_each(|cell| write!(f, "{}", cell.to_char()).unwrap());
@@ -206,14 +205,6 @@ pub fn load_boards(boards_dir: &str) -> Vec<Board> {
 pub fn load_board(board_path: &PathBuf) -> Board {
     debug!("loading {:?}", board_path);
 
-    let board_id: u32 = board_path
-        .file_stem()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .parse::<u32>()
-        .unwrap_or_else(|_| panic!("Board file name should be a number but {:?}", board_path));
-
     let file =
         File::open(board_path).unwrap_or_else(|_| panic!("Failed to open: {:?}", board_path));
     let mut reader = BufReader::new(file);
@@ -222,15 +213,14 @@ pub fn load_board(board_path: &PathBuf) -> Board {
     let name = String::from(name.trim());
 
     let board_lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
-    load_board_from_lines(board_id, name, &board_lines)
+    load_board_from_lines(name, &board_lines)
 }
 
-pub fn load_board_from_lines(id: u32, name: String, lines: &[String]) -> Board {
+pub fn load_board_from_lines(name: String, lines: &[String]) -> Board {
     let cells = read_cells(lines);
     let width: i32 = cells[0].len() as i32;
     let height: i32 = cells.len() as i32;
     Board {
-        id,
         name,
         cells,
         width,

@@ -1,9 +1,10 @@
 use std::{
+    cmp::Ordering,
     collections::HashMap,
-    fmt::Display,
+    fmt::{self, Display, Formatter},
     fs::{self, File},
     io::{BufRead, BufReader},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use super::{
@@ -82,7 +83,7 @@ impl CardCellType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq)]
 pub struct Card {
     id: u32,
     name: String,
@@ -130,10 +131,25 @@ impl Card {
     pub fn calculate_height(&self, rotation: Rotation) -> i32 {
         self.get_cells(rotation).keys().map(|p| p.y).max().unwrap() + 1
     }
+
+    pub fn format_cards(cards: &[&Card]) -> String {
+        let mut output = String::new();
+        //fmt::write(&mut output, '[')?;
+        output += "[";
+        for card in cards {
+            fmt::write(
+                &mut output,
+                format_args!("({}){},", card.get_id(), card.get_name()),
+            )
+            .unwrap();
+        }
+        output += "]";
+        output
+    }
 }
 
-impl std::fmt::Display for Card {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for Card {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         writeln!(f, "{}: {}", self.id, self.name)?;
         writeln!(f, "cnt: {} cost: {}", self.cell_count, self.special_cost)?;
         let rotation = Rotation::Up;
@@ -152,6 +168,24 @@ impl std::fmt::Display for Card {
             writeln!(f)?;
         }
         Ok(())
+    }
+}
+
+impl Ord for Card {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl PartialOrd for Card {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl PartialEq for Card {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id)
     }
 }
 
@@ -352,4 +386,31 @@ impl Display for CardPosition {
             self.x, self.y, self.rotation, self.special
         )
     }
+}
+
+pub fn card_ids_to_card_refs<'a>(
+    all_cards: &'a HashMap<u32, Card>,
+    card_ids: &[u32],
+) -> Vec<&'a Card> {
+    card_ids
+        .iter()
+        .map(|id| all_cards.get(id).unwrap())
+        .collect()
+}
+
+pub fn load_deck(deck_path: &PathBuf) -> Vec<u32> {
+    let file = File::open(deck_path).unwrap_or_else(|_| panic!("Failed to open: {:?}", deck_path));
+    let reader = BufReader::new(file);
+    let lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
+    lines
+        .iter()
+        .map(|line| {
+            line.trim()
+                .split(' ')
+                .next()
+                .unwrap()
+                .parse::<u32>()
+                .unwrap()
+        })
+        .collect()
 }

@@ -298,7 +298,7 @@ mod tests {
 
     fn new_test_board(lines: &[&str]) -> crate::engine::board::Board {
         let lines: Vec<String> = lines.iter().map(|s| String::from(*s)).collect();
-        board::load_board_from_lines(42, String::from("test board"), &lines)
+        board::load_board_from_lines(String::from("test board"), &lines)
     }
 
     fn new_test_card(lines: &[&str]) -> crate::engine::card::Card {
