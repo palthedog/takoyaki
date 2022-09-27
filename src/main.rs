@@ -20,19 +20,22 @@ use takoyaki::{
 
 #[derive(Parser)]
 struct Cli {
+    /// a directory path where holds all card data. no need to specify for many cases.
     #[clap(long, value_parser, default_value_t = String::from("data/cards"))]
     card_dir: String,
 
-    /// a file path to a board file
+    /// a file path to a board file. the selected board is used for games/training.
     #[clap(long, value_parser, default_value = "data/boards/massugu_street")]
     board_path: PathBuf,
 
+    // sub commands
     #[clap(subcommand)]
     command: Commands,
 }
 
 #[derive(Subcommand)]
 enum Commands {
+    /// play games with random hands/decks.
     #[clap(arg_required_else_help = true)]
     Rand {
         #[clap(long, short = 'c', value_parser, default_value_t = 1)]
