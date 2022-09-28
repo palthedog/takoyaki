@@ -329,6 +329,7 @@ impl<'a> TrainDeck<'a> {
             let next_generation = self.create_next_generation(&mut reports);
             population = next_generation;
         }
+        // TODO: consider playing against a starter deck or something so that we can see progress.
     }
 }
 

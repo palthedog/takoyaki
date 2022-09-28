@@ -18,4 +18,4 @@ textwrap = "0.15.1"
 
 [profile.release]
 # Enable only when you use profiler.
-debug = 1
+#debug = 1
