@@ -1,11 +1,15 @@
-use std::{collections::HashMap, fmt::Display, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+    path::PathBuf,
+};
 
 use clap::{Args, ValueHint};
 use itertools::Itertools;
 use log::*;
 use more_asserts::assert_le;
-use rand::{prelude::Distribution, seq::IteratorRandom};
-use rand_distr::WeightedAliasIndex;
+use rand::{prelude::Distribution, seq::IteratorRandom, Rng};
+use rand_distr::{WeightedAliasIndex, WeightedIndex};
 use rand_mt::Mt64;
 
 use crate::{
@@ -57,7 +61,7 @@ pub struct TrainDeckArgs {
     elite_count: usize,
 
     #[clap(long, short, value_parser, default_value_t = 0.01)]
-    mutation_rate: f32,
+    mutation_rate: f64,
 }
 
 #[derive(Debug)]
@@ -86,13 +90,13 @@ impl<'a, 'b> Display for Report<'a, 'b> {
 struct TrainDeck<'a> {
     rng: Mt64,
     args: TrainDeckArgs,
-    inventory_cards: Vec<&'a Card>,
+    inventory_cards: HashMap<u32, &'a Card>,
     player: RandomPlayer,
     opponent: RandomPlayer,
 }
 
 impl<'a> TrainDeck<'a> {
-    fn new(args: TrainDeckArgs, inventory_cards: Vec<&'a Card>) -> TrainDeck<'a> {
+    fn new(args: TrainDeckArgs, inventory_cards: HashMap<u32, &'a Card>) -> TrainDeck<'a> {
         let mut rng = Mt64::new(42);
         let p_seed = rng.next_u64();
         let o_seed = rng.next_u64();
@@ -178,8 +182,8 @@ impl<'a> TrainDeck<'a> {
         for _ in 0..self.args.population_size {
             let mut deck: Vec<&Card> = self
                 .inventory_cards
-                .iter()
-                .map(|r| *r)
+                .values()
+                .copied()
                 .choose_multiple(&mut self.rng, game::DECK_SIZE);
             deck.sort();
             population.push(deck);
@@ -188,28 +192,65 @@ impl<'a> TrainDeck<'a> {
     }
 
     fn crossover<'b>(&mut self, a: &Report<'a, 'b>, b: &Report<'a, 'b>) -> Vec<&'a Card> {
-        // key: card
+        // key: card id
         // value: weight
-        let mut cards: HashMap<u32, (&Card, u32)> = HashMap::new();
+        let mut card_weights: HashMap<u32, u32> = HashMap::new();
         a.deck.iter().for_each(|card| {
-            cards.insert(card.get_id(), (card, a.get_weight()));
+            card_weights.insert(card.get_id(), a.get_weight());
         });
         b.deck.iter().for_each(|card| {
-            let e = cards.entry(card.get_id()).or_insert((card, 0));
-            e.1 += b.get_weight();
+            let e = card_weights.entry(card.get_id()).or_insert(0);
+            *e += b.get_weight();
         });
 
-        debug!("Weighted cards: # of cards: {}", cards.len());
-        cards.values().for_each(|(c, w)| {
-            debug!("    w: {}: {}", w, c.fmt_short());
+        debug!("Weighted cards: # of cards: {}", card_weights.len());
+        card_weights.iter().for_each(|(id, w)| {
+            debug!("    w: {}: {}", w, id);
         });
 
-        let entries: Vec<(&u32, &(&Card, u32))> = cards.iter().collect();
-        let dist = WeightedAliasIndex::new(entries.iter().map(|e| *e.0).collect()).unwrap();
-        dist.sample_iter(&mut self.rng)
-            .take(game::DECK_SIZE)
-            .map(|index| entries[index].1 .0)
-            .collect()
+        let mut card_weights: Vec<(u32, u32)> =
+            card_weights.iter().map(|(k, v)| (*k, *v)).collect();
+        let mut new_deck: Vec<&Card> = vec![];
+        (0..game::DECK_SIZE).for_each(|_| {
+            let dist = WeightedIndex::new(card_weights.iter().map(|e| e.1)).unwrap();
+            let index: usize = dist.sample(&mut self.rng);
+            let (selected_card_id, _weight) = card_weights.remove(index);
+            new_deck.push(self.inventory_cards[&selected_card_id]);
+        });
+        new_deck
+    }
+
+    fn mutation(&mut self, deck: &mut [&'a Card]) {
+        let mut pool: HashSet<u32> = HashSet::new();
+        self.inventory_cards.keys().for_each(|card_id| {
+            pool.insert(*card_id);
+        });
+
+        deck.iter().for_each(|card| {
+            pool.remove(&card.get_id());
+        });
+
+        debug!("Pool: {:?}", pool);
+
+        let mut mutated = false;
+        (0..deck.len()).for_each(|i| {
+            if self.rng.gen_bool(self.args.mutation_rate) {
+                let removing = deck[i];
+                let replacing_id: u32 = *pool.iter().choose(&mut self.rng).unwrap();
+
+                pool.insert(removing.get_id());
+                pool.remove(&replacing_id);
+                debug!("swapping: from:{} to:{}", removing.get_id(), replacing_id);
+
+                deck[i] = self.inventory_cards[&replacing_id];
+                mutated = true;
+            }
+        });
+        Card::sort_by_id(deck);
+        if mutated {
+            info!("Mutated");
+            info!("    {}", Card::format_cards(deck));
+        }
     }
 
     fn create_next_generation<'b>(&mut self, reports: &mut [Report<'a, 'b>]) -> Vec<Vec<&'a Card>> {
@@ -225,7 +266,9 @@ impl<'a> TrainDeck<'a> {
 
         // Choose top elites as is.
         (0..self.args.elite_count).for_each(|i| {
-            next_gen.push(reports[i].deck.to_vec());
+            let mut deck = reports[i].deck.to_vec();
+            Card::sort_by_id(&mut deck);
+            next_gen.push(deck);
         });
 
         // let weights = WeightedIndex::new(reports.iter().map(|r| r.get_weight())).unwrap();
@@ -249,11 +292,11 @@ impl<'a> TrainDeck<'a> {
                 reports[b_index].win_cnt,
                 Card::format_cards(reports[b_index].deck),
             );
-            let deck = self.crossover(&reports[a_index], &reports[b_index]);
+            let mut deck = self.crossover(&reports[a_index], &reports[b_index]);
+            Card::sort_by_id(&mut deck);
             debug!("Crossover result:");
             debug!("    {}", Card::format_cards(&deck));
-
-            // TODO: mutation
+            self.mutation(&mut deck);
 
             next_gen.push(deck);
         }
@@ -280,7 +323,7 @@ impl<'a> TrainDeck<'a> {
             population
                 .iter()
                 .enumerate()
-                .for_each(|(i, v)| info!("  {}: {}", i, Card::format_cards(&v)));
+                .for_each(|(i, v)| info!("  {}: {}", i, Card::format_cards(v)));
             info!("Running  {} battles...", battles_count);
             let mut reports = self.run_league(board, &population);
             let next_generation = self.create_next_generation(&mut reports);
@@ -291,6 +334,6 @@ impl<'a> TrainDeck<'a> {
 
 pub fn train_deck(all_cards: &HashMap<u32, Card>, board: &Board, args: TrainDeckArgs) {
     let inventory_cards =
-        card::card_ids_to_card_refs(all_cards, &card::load_deck(&args.inventory_path));
+        card::card_ids_to_card_map(all_cards, &card::load_deck(&args.inventory_path));
     TrainDeck::new(args, inventory_cards).run(all_cards, board);
 }

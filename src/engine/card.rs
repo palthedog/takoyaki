@@ -142,6 +142,10 @@ impl Card {
         output
     }
 
+    pub fn sort_by_id(cards: &mut [&Card]) {
+        cards.sort_by(|a, b| a.id.cmp(&b.id));
+    }
+
     pub fn format_cards(cards: &[&Card]) -> String {
         let mut output = String::new();
         output += "[";
@@ -185,7 +189,7 @@ impl Ord for Card {
 
 impl PartialOrd for Card {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -401,6 +405,16 @@ pub fn card_ids_to_card_refs<'a>(
     card_ids
         .iter()
         .map(|id| all_cards.get(id).unwrap())
+        .collect()
+}
+
+pub fn card_ids_to_card_map<'a>(
+    all_cards: &'a HashMap<u32, Card>,
+    card_ids: &[u32],
+) -> HashMap<u32, &'a Card> {
+    card_ids
+        .iter()
+        .map(|id| (*id, all_cards.get(id).unwrap()))
         .collect()
 }
 
