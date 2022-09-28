@@ -132,16 +132,22 @@ impl Card {
         self.get_cells(rotation).keys().map(|p| p.y).max().unwrap() + 1
     }
 
+    pub fn fmt_short(&self) -> String {
+        let mut output = String::new();
+        fmt::write(
+            &mut output,
+            format_args!("({}){}", self.get_id(), self.get_name()),
+        )
+        .unwrap();
+        output
+    }
+
     pub fn format_cards(cards: &[&Card]) -> String {
         let mut output = String::new();
-        //fmt::write(&mut output, '[')?;
         output += "[";
         for card in cards {
-            fmt::write(
-                &mut output,
-                format_args!("({}){},", card.get_id(), card.get_name()),
-            )
-            .unwrap();
+            output += &card.fmt_short();
+            output += ",";
         }
         output += "]";
         output

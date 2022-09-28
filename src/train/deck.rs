@@ -1,9 +1,11 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, fmt::Display, path::PathBuf};
 
 use clap::{Args, ValueHint};
 use itertools::Itertools;
 use log::*;
-use rand::seq::IteratorRandom;
+use more_asserts::assert_le;
+use rand::{prelude::Distribution, seq::IteratorRandom};
+use rand_distr::WeightedAliasIndex;
 use rand_mt::Mt64;
 
 use crate::{
@@ -12,25 +14,12 @@ use crate::{
         card::{self, Card},
         game,
     },
-    players::{random::RandomPlayer, Player},
+    players::random::RandomPlayer,
     runner,
 };
 
 #[derive(Args)]
 pub struct TrainDeckArgs {
-    #[clap(long, short = 'e', value_parser, default_value_t = 1)]
-    max_epoch: u32,
-
-    /// How many battles should be held for each epoch.
-    /// Note that specified amount of battles happen for each deck variations so
-    /// `C(variations, 2) * battles_per_epoch` battle simulations happen for each epoch.
-    #[clap(long, short = 'b', value_parser, default_value_t = 1)]
-    battles_per_epoch: usize,
-
-    /// How many deck variations should be made for each epoch.
-    #[clap(long, short, value_parser, default_value_t = 4)]
-    variations_count: u32,
-
     /// a path to a deck file which describes the list of cards you already have.
     #[clap(
         short,
@@ -48,6 +37,50 @@ pub struct TrainDeckArgs {
         value_hint=ValueHint::FilePath,
     )]
     checkpoint_deck_path: Option<PathBuf>,
+
+    #[clap(long, short = 'g', value_parser, default_value_t = 1)]
+    max_generation: u32,
+
+    /// How many battles should be held for each epoch.
+    /// Note that specified amount of battles happen for each deck variations so
+    /// `C(variations, 2) * battles_per_epoch` battle simulations happen for each epoch.
+    #[clap(long, short = 'b', value_parser, default_value_t = 1)]
+    battles_per_epoch: usize,
+
+    /// How many deck variations should be made for each epoch.
+    #[clap(long, short = 'p', value_parser, default_value_t = 10)]
+    population_size: usize,
+
+    /// Top `elite_count` genes are always inherited to the next generation.
+    /// Rest of the population is filled by crossover/mutation.
+    #[clap(long, short, value_parser, default_value_t = 3)]
+    elite_count: usize,
+
+    #[clap(long, short, value_parser, default_value_t = 0.01)]
+    mutation_rate: f32,
+}
+
+#[derive(Debug)]
+struct Report<'a, 'b> {
+    deck: &'b [&'a Card],
+    win_cnt: u32,
+}
+
+impl<'a, 'b> Report<'a, 'b> {
+    fn get_weight(&self) -> u32 {
+        self.win_cnt
+    }
+}
+
+impl<'a, 'b> Display for Report<'a, 'b> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "deck: {}, win: {}",
+            Card::format_cards(self.deck),
+            self.win_cnt
+        )
+    }
 }
 
 struct TrainDeck<'a> {
@@ -72,26 +105,12 @@ impl<'a> TrainDeck<'a> {
         }
     }
 
-    fn create_initial_variations(&mut self) -> Vec<Vec<&'a Card>> {
-        let mut variations: Vec<Vec<&Card>> = vec![];
-        for _ in 0..self.args.variations_count {
-            let mut deck: Vec<&Card> = self
-                .inventory_cards
-                .iter()
-                .map(|r| *r)
-                .choose_multiple(&mut self.rng, game::DECK_SIZE);
-            deck.sort();
-            variations.push(deck);
-        }
-        variations
-    }
-
     fn run_battles(
         &mut self,
         board: &Board,
         player_deck: &[&'a Card],
         opponent_deck: &[&'a Card],
-    ) -> (i32, i32, i32) {
+    ) -> (u32, u32, u32) {
         let mut player_won_cnt = 0;
         let mut opponent_won_cnt = 0;
         let mut draw_cnt = 0;
@@ -122,11 +141,17 @@ impl<'a> TrainDeck<'a> {
         (player_won_cnt, opponent_won_cnt, draw_cnt)
     }
 
-    fn run_league(&mut self, board: &Board, variations: &[Vec<&'a Card>]) {
+    fn run_league<'b>(
+        &mut self,
+        board: &Board,
+        population: &'b [Vec<&'a Card>],
+    ) -> Vec<Report<'a, 'b>> {
+        assert_eq!(self.args.population_size, population.len());
+
         // key: variation_index
         // value: won count
-        let mut won_cnts: HashMap<usize, i32> = HashMap::new();
-        (0..variations.len()).combinations(2).for_each(|pair| {
+        let mut won_cnts: HashMap<usize, u32> = HashMap::new();
+        (0..population.len()).combinations(2).for_each(|pair| {
             let p_deck_index = pair[0];
             let o_deck_index = pair[1];
             debug!(
@@ -134,28 +159,132 @@ impl<'a> TrainDeck<'a> {
                 p_deck_index, o_deck_index
             );
             let (p, o, _draw) =
-                self.run_battles(board, &variations[p_deck_index], &variations[o_deck_index]);
+                self.run_battles(board, &population[p_deck_index], &population[o_deck_index]);
             *won_cnts.entry(p_deck_index).or_insert(0) += p;
             *won_cnts.entry(o_deck_index).or_insert(0) += o;
         });
 
-        debug!("League result: {:?}", won_cnts);
+        won_cnts
+            .iter()
+            .map(|(index, cnt)| Report {
+                deck: &population[*index],
+                win_cnt: *cnt,
+            })
+            .collect()
+    }
+
+    fn create_initial_population(&mut self) -> Vec<Vec<&'a Card>> {
+        let mut population: Vec<Vec<&Card>> = vec![];
+        for _ in 0..self.args.population_size {
+            let mut deck: Vec<&Card> = self
+                .inventory_cards
+                .iter()
+                .map(|r| *r)
+                .choose_multiple(&mut self.rng, game::DECK_SIZE);
+            deck.sort();
+            population.push(deck);
+        }
+        population
+    }
+
+    fn crossover<'b>(&mut self, a: &Report<'a, 'b>, b: &Report<'a, 'b>) -> Vec<&'a Card> {
+        // key: card
+        // value: weight
+        let mut cards: HashMap<u32, (&Card, u32)> = HashMap::new();
+        a.deck.iter().for_each(|card| {
+            cards.insert(card.get_id(), (card, a.get_weight()));
+        });
+        b.deck.iter().for_each(|card| {
+            let e = cards.entry(card.get_id()).or_insert((card, 0));
+            e.1 += b.get_weight();
+        });
+
+        debug!("Weighted cards: # of cards: {}", cards.len());
+        cards.values().for_each(|(c, w)| {
+            debug!("    w: {}: {}", w, c.fmt_short());
+        });
+
+        let entries: Vec<(&u32, &(&Card, u32))> = cards.iter().collect();
+        let dist = WeightedAliasIndex::new(entries.iter().map(|e| *e.0).collect()).unwrap();
+        dist.sample_iter(&mut self.rng)
+            .take(game::DECK_SIZE)
+            .map(|index| entries[index].1 .0)
+            .collect()
+    }
+
+    fn create_next_generation<'b>(&mut self, reports: &mut [Report<'a, 'b>]) -> Vec<Vec<&'a Card>> {
+        assert_eq!(self.args.population_size, reports.len());
+
+        reports.sort_by(|a, b| b.win_cnt.cmp(&a.win_cnt));
+        info!("League result:");
+        reports.iter().for_each(|r| {
+            info!("  win: {}: {}", r.win_cnt, Card::format_cards(r.deck));
+        });
+
+        let mut next_gen: Vec<Vec<&'a Card>> = vec![];
+
+        // Choose top elites as is.
+        (0..self.args.elite_count).for_each(|i| {
+            next_gen.push(reports[i].deck.to_vec());
+        });
+
+        // let weights = WeightedIndex::new(reports.iter().map(|r| r.get_weight())).unwrap();
+        // We use WeightedAliasIndex instead of WeightedIndex becaues we'll take 2*N genes here.
+        // Initialization cost + taking costs would be:
+        //   WeightedIndex: N * O(logN) => O(NlogN)
+        //   WeightedAliasIndex: O(N) + N * O(1) => O(N)
+        let weights =
+            WeightedAliasIndex::new(reports.iter().map(|r| r.get_weight()).collect()).unwrap();
+        while next_gen.len() < self.args.population_size {
+            let a_index = weights.sample(&mut self.rng);
+            let b_index = weights.sample(&mut self.rng);
+            debug!("Crossover");
+            debug!(
+                "    #{}: {}",
+                reports[a_index].win_cnt,
+                Card::format_cards(reports[a_index].deck),
+            );
+            debug!(
+                "    #{}: {}",
+                reports[b_index].win_cnt,
+                Card::format_cards(reports[b_index].deck),
+            );
+            let deck = self.crossover(&reports[a_index], &reports[b_index]);
+            debug!("Crossover result:");
+            debug!("    {}", Card::format_cards(&deck));
+
+            // TODO: mutation
+
+            next_gen.push(deck);
+        }
+
+        assert_eq!(self.args.population_size, next_gen.len());
+        next_gen
     }
 
     fn run(&mut self, _all_cards: &HashMap<u32, Card>, board: &Board) {
-        let variations = self.create_initial_variations();
-        debug!("Initial variations:");
-        variations
-            .iter()
-            .enumerate()
-            .for_each(|(i, v)| info!("  {}: {}", i, Card::format_cards(&v)));
+        assert_le!(
+            self.args.elite_count,
+            self.args.population_size,
+            "elite-count must be smaller than population-size"
+        );
 
-        let max_epoch = self.args.max_epoch;
+        let mut population = self.create_initial_population();
+        let max_epoch = self.args.max_generation;
+        let battles_count = self.args.battles_per_epoch
+            * self.args.population_size
+            * (self.args.population_size - 1)
+            / 2;
         for n in 0..max_epoch {
-            self.run_league(board, &variations);
-            if n % 100 == 0 {
-                println!(" #{}", n);
-            }
+            info!("# Generation {}", n);
+            population
+                .iter()
+                .enumerate()
+                .for_each(|(i, v)| info!("  {}: {}", i, Card::format_cards(&v)));
+            info!("Running  {} battles...", battles_count);
+            let mut reports = self.run_league(board, &population);
+            let next_generation = self.create_next_generation(&mut reports);
+            population = next_generation;
         }
     }
 }

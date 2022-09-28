@@ -1,4 +1,4 @@
-use log::info;
+use log::*;
 use rand::seq::SliceRandom;
 use rand::Rng;
 use rand_mt::Mt64;
@@ -52,7 +52,7 @@ impl Player for RandomPlayer {
             self.player_id,
             &mut actions_buffer,
         );
-        info!("Got {} valid actions", actions_buffer.len());
+        debug!("Got {} valid actions", actions_buffer.len());
         let index = self.rng.gen_range(0..actions_buffer.len());
         actions_buffer.remove(index)
     }

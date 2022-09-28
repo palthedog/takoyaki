@@ -17,7 +17,7 @@ pub fn deal_hands<'a>(
     player: &mut impl Player,
 ) -> PlayerState<'a> {
     let mut deck_cards = player.get_deck(all_cards);
-    info!(
+    debug!(
         "Deck: {:#?}",
         deck_cards
             .iter()
@@ -57,16 +57,16 @@ pub fn run<'a, 'c: 'a>(
 
     let mut player_state = deal_hands(rng, player_inventory_cards, player);
     let mut opponent_state = deal_hands(rng, opponent_inventory_cards, opponent);
-    info!("Player states initialized");
-    info!("player: {}\nopponent: {}", player_state, opponent_state);
+    debug!("Player states initialized");
+    debug!("player: {}\nopponent: {}", player_state, opponent_state);
     let mut state = State::new(board.clone(), 0, 0, 0);
     for turn in 0..game::TURN_COUNT {
-        info!("Starting Turn {}", turn + 1);
+        debug!("Starting Turn {}", turn + 1);
         let player_action = player.get_action(&state, &player_state);
         let opponent_action = opponent.get_action(&state, &opponent_state);
 
-        info!("Player action: {}", player_action);
-        info!("Opponent action: {}", opponent_action);
+        debug!("Player action: {}", player_action);
+        debug!("Opponent action: {}", opponent_action);
 
         state::update_state(&mut state, &player_action, &opponent_action);
 
@@ -79,9 +79,9 @@ pub fn run<'a, 'c: 'a>(
         state::update_player_state(&mut tmp, &opponent_action);
         opponent_state = tmp;
 
-        info!("State is updated ->: {}", state);
-        info!("Player state: {}", player_state);
-        info!("Opponent state: {}", opponent_state);
+        debug!("State is updated ->: {}", state);
+        debug!("Player state: {}", player_state);
+        debug!("Opponent state: {}", opponent_state);
     }
 
     state.board.get_scores()
