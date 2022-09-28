@@ -248,8 +248,8 @@ impl<'a> TrainDeck<'a> {
         });
         Card::sort_by_id(deck);
         if mutated {
-            info!("Mutated");
-            info!("    {}", Card::format_cards(deck));
+            debug!("Mutated");
+            debug!("    {}", Card::format_cards(deck));
         }
     }
 
@@ -320,9 +320,11 @@ impl<'a> TrainDeck<'a> {
             / 2;
         for n in 0..max_epoch {
             info!("# Generation {}", n);
+            info!("Best {}", self.args.elite_count);
             population
                 .iter()
                 .enumerate()
+                .take(self.args.elite_count)
                 .for_each(|(i, v)| info!("  {}: {}", i, Card::format_cards(v)));
             info!("Running  {} battles...", battles_count);
             let mut reports = self.run_league(board, &population);
