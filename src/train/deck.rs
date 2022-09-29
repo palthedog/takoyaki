@@ -33,14 +33,26 @@ pub struct TrainDeckArgs {
     )]
     inventory_path: PathBuf,
 
-    /// a path to a deck file where we start training from
+    /// a path to a deck file used by the opponent for evaluation.
+    /// if not specified, self deck under training is used.
     #[clap(
         short,
         long,
         value_parser,
         value_hint=ValueHint::FilePath,
+        default_value = "data/decks/starter",
     )]
-    checkpoint_deck_path: Option<PathBuf>,
+    evaluation_deck_path: PathBuf,
+
+    /// a path to a deck file used by the opponent for validation.
+    #[clap(
+        short,
+        long,
+        value_parser,
+        value_hint=ValueHint::FilePath,
+        default_value = "data/decks/starter"
+    )]
+    validation_deck_path: PathBuf,
 
     #[clap(long, short = 'g', value_parser, default_value_t = 1)]
     max_generation: u32,
@@ -112,13 +124,14 @@ impl<'a> TrainDeck<'a> {
     fn run_battles(
         &mut self,
         board: &Board,
+        battle_count: usize,
         player_deck: &[&'a Card],
         opponent_deck: &[&'a Card],
     ) -> (u32, u32, u32) {
         let mut player_won_cnt = 0;
         let mut opponent_won_cnt = 0;
         let mut draw_cnt = 0;
-        (0..self.args.battles_per_epoch).for_each(|_| {
+        (0..battle_count).for_each(|_| {
             let (p, o) = runner::run(
                 board,
                 player_deck,
@@ -145,29 +158,25 @@ impl<'a> TrainDeck<'a> {
         (player_won_cnt, opponent_won_cnt, draw_cnt)
     }
 
-    fn run_league<'b>(
+    fn evaluate_population<'b>(
         &mut self,
         board: &Board,
         population: &'b [Vec<&'a Card>],
+        opponent_deck: &'b [&'a Card],
     ) -> Vec<Report<'a, 'b>> {
-        assert_eq!(self.args.population_size, population.len());
-
         // key: variation_index
         // value: won count
         let mut won_cnts: HashMap<usize, u32> = HashMap::new();
-        (0..population.len()).combinations(2).for_each(|pair| {
-            let p_deck_index = pair[0];
-            let o_deck_index = pair[1];
-            debug!(
-                "Start running battles: {} v.s. {}",
-                p_deck_index, o_deck_index
+        (0..population.len()).for_each(|p_deck_index| {
+            let player_deck = &population[p_deck_index];
+            let (win, _lose, _draw) = self.run_battles(
+                board,
+                self.args.battles_per_epoch,
+                player_deck,
+                opponent_deck,
             );
-            let (p, o, _draw) =
-                self.run_battles(board, &population[p_deck_index], &population[o_deck_index]);
-            *won_cnts.entry(p_deck_index).or_insert(0) += p;
-            *won_cnts.entry(o_deck_index).or_insert(0) += o;
+            *won_cnts.entry(p_deck_index).or_insert(0) += win;
         });
-
         won_cnts
             .iter()
             .map(|(index, cnt)| Report {
@@ -203,10 +212,12 @@ impl<'a> TrainDeck<'a> {
             *e += b.get_weight();
         });
 
-        debug!("Weighted cards: # of cards: {}", card_weights.len());
-        card_weights.iter().for_each(|(id, w)| {
-            debug!("    w: {}: {}", w, id);
-        });
+        if log_enabled!(log::Level::Debug) {
+            debug!("Weighted cards: # of cards: {}", card_weights.len());
+            card_weights.iter().for_each(|(id, w)| {
+                debug!("    w: {}: {}", w, id);
+            });
+        }
 
         let mut card_weights: Vec<(u32, u32)> =
             card_weights.iter().map(|(k, v)| (*k, *v)).collect();
@@ -257,10 +268,12 @@ impl<'a> TrainDeck<'a> {
         assert_eq!(self.args.population_size, reports.len());
 
         reports.sort_by(|a, b| b.win_cnt.cmp(&a.win_cnt));
-        info!("League result:");
-        reports.iter().for_each(|r| {
-            info!("  win: {}: {}", r.win_cnt, Card::format_cards(r.deck));
-        });
+        if log_enabled!(log::Level::Debug) {
+            debug!("League result:");
+            reports.iter().for_each(|r| {
+                debug!("  win: {}: {}", r.win_cnt, Card::format_cards(r.deck));
+            });
+        }
 
         let mut next_gen: Vec<Vec<&'a Card>> = vec![];
 
@@ -305,19 +318,25 @@ impl<'a> TrainDeck<'a> {
         next_gen
     }
 
-    fn run(&mut self, _all_cards: &HashMap<u32, Card>, board: &Board) {
+    fn run(&mut self, all_cards: &'a HashMap<u32, Card>, board: &Board) {
         assert_le!(
             self.args.elite_count,
             self.args.population_size,
             "elite-count must be smaller than population-size"
         );
 
+        let evaluation_deck = card::card_ids_to_card_refs(
+            all_cards,
+            &card::load_deck(&self.args.evaluation_deck_path),
+        );
+        let validation_deck = card::card_ids_to_card_refs(
+            all_cards,
+            &card::load_deck(&self.args.validation_deck_path),
+        );
+
         let mut population = self.create_initial_population();
         let max_epoch = self.args.max_generation;
-        let battles_count = self.args.battles_per_epoch
-            * self.args.population_size
-            * (self.args.population_size - 1)
-            / 2;
+        let battles_count = self.args.battles_per_epoch * self.args.population_size;
         for n in 0..max_epoch {
             info!("# Generation {}", n);
             info!("Best {}", self.args.elite_count);
@@ -327,11 +346,22 @@ impl<'a> TrainDeck<'a> {
                 .take(self.args.elite_count)
                 .for_each(|(i, v)| info!("  {}: {}", i, Card::format_cards(v)));
             info!("Running  {} battles...", battles_count);
-            let mut reports = self.run_league(board, &population);
+            //let mut reports = self.run_league(board, &population);
+            let mut reports = self.evaluate_population(board, &population, &evaluation_deck);
+
+            // Validation
+            info!("Validating...");
+            let best_deck = &reports
+                .iter()
+                .max_by(|a, b| a.win_cnt.cmp(&b.win_cnt))
+                .unwrap()
+                .deck;
+            let (w, l, d) = self.run_battles(board, 1000, best_deck, &validation_deck);
+            info!("Validation: Win rate: {:.3}", w as f64 / (w + l + d) as f64);
+
             let next_generation = self.create_next_generation(&mut reports);
             population = next_generation;
         }
-        // TODO: consider playing against a starter deck or something so that we can see progress.
     }
 }
 
