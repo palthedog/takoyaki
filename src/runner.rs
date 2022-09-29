@@ -1,11 +1,12 @@
+use std::io::{stdin, Read};
+
 use log::*;
 pub use rand::{seq::SliceRandom, Rng};
 
 use crate::{
     engine::{
-        board::Board,
         card::Card,
-        game::{self, PlayerId},
+        game::{self, Context, PlayerId},
         state::{self, PlayerState, State},
     },
     players::*,
@@ -38,28 +39,21 @@ pub fn deal_hands<'a>(
 }
 
 pub fn run<'a, 'c: 'a>(
-    board: &'c Board,
+    context: &Context,
     player_inventory_cards: &[&'c Card],
     opponent_inventory_cards: &[&'c Card],
     player: &'a mut impl Player,
     opponent: &'a mut impl Player,
     rng: &mut impl Rng,
 ) -> (i32, i32) {
-    player.init_game(PlayerId::Player, board);
-    opponent.init_game(PlayerId::Opponent, board);
-
-    // TODO: Support deck with more than 15 cards.
-    // For now, get_deck must return 15 cards to respect the rule.
-    // However, we need a way to support "pseudo" deck/hand with
-    // all possible cards so that we can playout a game to implement
-    // MCTS.
-    // Maybe we can just put all cards in `hands`?
+    player.init_game(PlayerId::Player, &context.board);
+    opponent.init_game(PlayerId::Opponent, &context.board);
 
     let mut player_state = deal_hands(rng, player_inventory_cards, player);
     let mut opponent_state = deal_hands(rng, opponent_inventory_cards, opponent);
     debug!("Player states initialized");
     debug!("player: {}\nopponent: {}", player_state, opponent_state);
-    let mut state = State::new(board.clone(), 0, 0, 0);
+    let mut state = State::new(context.board.clone(), 0, 0, 0);
     for turn in 0..game::TURN_COUNT {
         debug!("Starting Turn {}", turn + 1);
         let player_action = player.get_action(&state, &player_state);
@@ -67,6 +61,12 @@ pub fn run<'a, 'c: 'a>(
 
         debug!("Player action: {}", player_action);
         debug!("Opponent action: {}", opponent_action);
+        if context.enabled_step_execution {
+            println!("Player action: {}", player_action);
+            println!("{}", player_action.get_consumed_card());
+            println!("Opponent action: {}", opponent_action);
+            println!("{}", opponent_action.get_consumed_card());
+        }
 
         state::update_state(&mut state, &player_action, &opponent_action);
 
@@ -82,6 +82,13 @@ pub fn run<'a, 'c: 'a>(
         debug!("State is updated ->: {}", state);
         debug!("Player state: {}", player_state);
         debug!("Opponent state: {}", opponent_state);
+        if context.enabled_step_execution {
+            println!("{}", state);
+            println!("Turn {} has finished. Press enter key to continue", {
+                turn + 1
+            });
+            stdin().read(&mut [0]).unwrap();
+        }
     }
 
     state.board.get_scores()

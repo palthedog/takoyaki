@@ -136,7 +136,7 @@ impl<'a> TrainDeck<'a> {
         let mut draw_cnt = 0;
         (0..battle_count).for_each(|_| {
             let (p, o) = runner::run(
-                &self.context.board,
+                self.context,
                 player_deck,
                 opponent_deck,
                 &mut self.player,

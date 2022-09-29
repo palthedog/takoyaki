@@ -28,6 +28,9 @@ struct Cli {
     #[clap(long, value_parser, default_value = "data/boards/massugu_street")]
     board_path: PathBuf,
 
+    #[clap(long, short, value_parser, default_value_t = false)]
+    step_execution: bool,
+
     // sub commands
     #[clap(subcommand)]
     command: Commands,
@@ -89,7 +92,7 @@ fn run_rand(
     let mut draw_cnt = 0;
     for n in 0..play_cnt {
         let (p, o) = runner::run(
-            &context.board,
+            &context,
             &player_inventory_cards,
             &opponent_inventory_cards,
             &mut player,
@@ -110,7 +113,7 @@ fn run_rand(
                 player_won_cnt += 1;
             }
         }
-        if n % 100 == 0 {
+        if n % 100 == 0 || context.enabled_step_execution {
             println!("Battle #{}", n);
             print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
         }
@@ -143,7 +146,11 @@ fn main() {
     }
     let board = board::load_board(&args.board_path);
 
-    let context = Context { board, all_cards };
+    let context = Context {
+        board,
+        all_cards,
+        enabled_step_execution: args.step_execution,
+    };
 
     match args.command {
         Commands::Rand {

@@ -13,6 +13,7 @@ pub const TURN_COUNT: i32 = 12;
 pub struct Context {
     pub board: Board,
     pub all_cards: HashMap<u32, Card>,
+    pub enabled_step_execution: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
