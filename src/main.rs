@@ -1,7 +1,6 @@
 extern crate env_logger;
 extern crate log;
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueHint};
@@ -10,8 +9,9 @@ use rand_mt::Mt64;
 
 use takoyaki::{
     engine::{
-        board::{self, Board},
+        board,
         card::{self, Card},
+        game::Context,
     },
     players::random::RandomPlayer,
     runner,
@@ -64,8 +64,7 @@ enum Commands {
 }
 
 fn run_rand(
-    all_cards: &HashMap<u32, Card>,
-    board: &Board,
+    context: &Context,
     play_cnt: u32,
     player_deck_path: &Option<PathBuf>,
     opponent_deck_path: &Option<PathBuf>,
@@ -77,12 +76,12 @@ fn run_rand(
     let mut opponent = RandomPlayer::new(rng.next_u64());
 
     let player_inventory_cards: Vec<&Card> = match player_deck_path {
-        Some(path) => card::card_ids_to_card_refs(all_cards, &card::load_deck(path)),
-        None => all_cards.values().collect(),
+        Some(path) => card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(path)),
+        None => context.all_cards.values().collect(),
     };
     let opponent_inventory_cards: Vec<&Card> = match opponent_deck_path {
-        Some(path) => card::card_ids_to_card_refs(all_cards, &card::load_deck(path)),
-        None => all_cards.values().collect(),
+        Some(path) => card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(path)),
+        None => context.all_cards.values().collect(),
     };
 
     let mut player_won_cnt = 0;
@@ -90,7 +89,7 @@ fn run_rand(
     let mut draw_cnt = 0;
     for n in 0..play_cnt {
         let (p, o) = runner::run(
-            board,
+            &context.board,
             &player_inventory_cards,
             &opponent_inventory_cards,
             &mut player,
@@ -137,9 +136,14 @@ fn print_rate(p_cnt: usize, o_cnt: usize, draw_cnt: usize) {
 fn main() {
     env_logger::init();
     let args = Cli::parse();
+
     let all_cards = card::load_cards(&args.card_dir);
-    all_cards.values().for_each(|c| debug!("{}", c));
+    if log_enabled!(Level::Debug) {
+        all_cards.values().for_each(|c| debug!("{}", c));
+    }
     let board = board::load_board(&args.board_path);
+
+    let context = Context { board, all_cards };
 
     match args.command {
         Commands::Rand {
@@ -147,14 +151,8 @@ fn main() {
             player_deck_path,
             opponent_deck_path,
         } => {
-            run_rand(
-                &all_cards,
-                &board,
-                play_cnt,
-                &player_deck_path,
-                &opponent_deck_path,
-            );
+            run_rand(&context, play_cnt, &player_deck_path, &opponent_deck_path);
         }
-        Commands::TrainDeck(args) => train::deck::train_deck(&all_cards, &board, args),
+        Commands::TrainDeck(args) => train::deck::train_deck(&context, args),
     }
 }

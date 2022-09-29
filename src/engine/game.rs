@@ -1,11 +1,19 @@
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
-use super::card::{Card, CardPosition};
+use super::{
+    board::Board,
+    card::{Card, CardPosition},
+};
 
 pub const HAND_SIZE: usize = 4;
 pub const DECK_SIZE: usize = 15;
 
 pub const TURN_COUNT: i32 = 12;
+
+pub struct Context {
+    pub board: Board,
+    pub all_cards: HashMap<u32, Card>,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerId {

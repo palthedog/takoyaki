@@ -5,7 +5,6 @@ use std::{
 };
 
 use clap::{Args, ValueHint};
-use itertools::Itertools;
 use log::*;
 use more_asserts::assert_le;
 use rand::{prelude::Distribution, seq::IteratorRandom, Rng};
@@ -14,9 +13,8 @@ use rand_mt::Mt64;
 
 use crate::{
     engine::{
-        board::Board,
         card::{self, Card},
-        game,
+        game::{self, Context},
     },
     players::random::RandomPlayer,
     runner,
@@ -101,6 +99,7 @@ impl<'a, 'b> Display for Report<'a, 'b> {
 
 struct TrainDeck<'a> {
     rng: Mt64,
+    context: &'a Context,
     args: TrainDeckArgs,
     inventory_cards: HashMap<u32, &'a Card>,
     player: RandomPlayer,
@@ -108,12 +107,17 @@ struct TrainDeck<'a> {
 }
 
 impl<'a> TrainDeck<'a> {
-    fn new(args: TrainDeckArgs, inventory_cards: HashMap<u32, &'a Card>) -> TrainDeck<'a> {
+    fn new(
+        context: &'a Context,
+        args: TrainDeckArgs,
+        inventory_cards: HashMap<u32, &'a Card>,
+    ) -> TrainDeck<'a> {
         let mut rng = Mt64::new(42);
         let p_seed = rng.next_u64();
         let o_seed = rng.next_u64();
         TrainDeck {
             rng,
+            context,
             args,
             inventory_cards,
             player: RandomPlayer::new(p_seed),
@@ -123,7 +127,6 @@ impl<'a> TrainDeck<'a> {
 
     fn run_battles(
         &mut self,
-        board: &Board,
         battle_count: usize,
         player_deck: &[&'a Card],
         opponent_deck: &[&'a Card],
@@ -133,7 +136,7 @@ impl<'a> TrainDeck<'a> {
         let mut draw_cnt = 0;
         (0..battle_count).for_each(|_| {
             let (p, o) = runner::run(
-                board,
+                &self.context.board,
                 player_deck,
                 opponent_deck,
                 &mut self.player,
@@ -160,7 +163,6 @@ impl<'a> TrainDeck<'a> {
 
     fn evaluate_population<'b>(
         &mut self,
-        board: &Board,
         population: &'b [Vec<&'a Card>],
         opponent_deck: &'b [&'a Card],
     ) -> Vec<Report<'a, 'b>> {
@@ -169,12 +171,8 @@ impl<'a> TrainDeck<'a> {
         let mut won_cnts: HashMap<usize, u32> = HashMap::new();
         (0..population.len()).for_each(|p_deck_index| {
             let player_deck = &population[p_deck_index];
-            let (win, _lose, _draw) = self.run_battles(
-                board,
-                self.args.battles_per_epoch,
-                player_deck,
-                opponent_deck,
-            );
+            let (win, _lose, _draw) =
+                self.run_battles(self.args.battles_per_epoch, player_deck, opponent_deck);
             *won_cnts.entry(p_deck_index).or_insert(0) += win;
         });
         won_cnts
@@ -318,7 +316,7 @@ impl<'a> TrainDeck<'a> {
         next_gen
     }
 
-    fn run(&mut self, all_cards: &'a HashMap<u32, Card>, board: &Board) {
+    fn run(&mut self) {
         assert_le!(
             self.args.elite_count,
             self.args.population_size,
@@ -326,11 +324,11 @@ impl<'a> TrainDeck<'a> {
         );
 
         let evaluation_deck = card::card_ids_to_card_refs(
-            all_cards,
+            &self.context.all_cards,
             &card::load_deck(&self.args.evaluation_deck_path),
         );
         let validation_deck = card::card_ids_to_card_refs(
-            all_cards,
+            &self.context.all_cards,
             &card::load_deck(&self.args.validation_deck_path),
         );
 
@@ -347,7 +345,7 @@ impl<'a> TrainDeck<'a> {
                 .for_each(|(i, v)| info!("  {}: {}", i, Card::format_cards(v)));
             info!("Running  {} battles...", battles_count);
             //let mut reports = self.run_league(board, &population);
-            let mut reports = self.evaluate_population(board, &population, &evaluation_deck);
+            let mut reports = self.evaluate_population(&population, &evaluation_deck);
 
             // Validation
             info!("Validating...");
@@ -356,7 +354,7 @@ impl<'a> TrainDeck<'a> {
                 .max_by(|a, b| a.win_cnt.cmp(&b.win_cnt))
                 .unwrap()
                 .deck;
-            let (w, l, d) = self.run_battles(board, 1000, best_deck, &validation_deck);
+            let (w, l, d) = self.run_battles(1000, best_deck, &validation_deck);
             info!("Validation: Win rate: {:.3}", w as f64 / (w + l + d) as f64);
 
             let next_generation = self.create_next_generation(&mut reports);
@@ -365,8 +363,8 @@ impl<'a> TrainDeck<'a> {
     }
 }
 
-pub fn train_deck(all_cards: &HashMap<u32, Card>, board: &Board, args: TrainDeckArgs) {
+pub fn train_deck(context: &Context, args: TrainDeckArgs) {
     let inventory_cards =
-        card::card_ids_to_card_map(all_cards, &card::load_deck(&args.inventory_path));
-    TrainDeck::new(args, inventory_cards).run(all_cards, board);
+        card::card_ids_to_card_map(&context.all_cards, &card::load_deck(&args.inventory_path));
+    TrainDeck::new(context, args, inventory_cards).run();
 }
