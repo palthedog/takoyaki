@@ -83,6 +83,10 @@ pub struct Board {
 }
 
 impl Board {
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
     pub fn get_scores(&self) -> (i32, i32) {
         let mut player_cnt = 0;
         let mut opponent_cnt = 0;

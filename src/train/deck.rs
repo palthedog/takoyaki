@@ -356,6 +356,7 @@ impl<'a> TrainDeck<'a> {
                 .deck;
             let (w, l, d) = self.run_battles(1000, best_deck, &validation_deck);
             info!("Validation: Win rate: {:.3}", w as f64 / (w + l + d) as f64);
+            info!("Board: {}", self.context.board.get_name());
 
             let next_generation = self.create_next_generation(&mut reports);
             population = next_generation;

@@ -25,7 +25,12 @@ struct Cli {
     card_dir: String,
 
     /// a file path to a board file. the selected board is used for games/training.
-    #[clap(long, value_parser, default_value = "data/boards/massugu_street")]
+    #[clap(
+        long,
+        short,
+        value_parser,
+        default_value = "data/boards/massugu_street"
+    )]
     board_path: PathBuf,
 
     #[clap(long, short, value_parser, default_value_t = false)]
@@ -124,6 +129,7 @@ fn run_rand(
         "Used decks: p: {:?}, o: {:?}",
         player_deck_path, opponent_deck_path
     );
+    println!("Board: {}", &context.board.get_name());
     print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
 }
 
