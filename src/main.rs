@@ -97,7 +97,7 @@ fn run_rand(
     let mut draw_cnt = 0;
     for n in 0..play_cnt {
         let (p, o) = runner::run(
-            &context,
+            context,
             &player_inventory_cards,
             &opponent_inventory_cards,
             &mut player,

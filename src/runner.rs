@@ -1,7 +1,7 @@
-use std::io::{stdin, Read};
+use std::io::stdin;
 
 use log::*;
-pub use rand::{seq::SliceRandom, Rng};
+use rand::{seq::SliceRandom, Rng};
 
 use crate::{
     engine::{
@@ -87,7 +87,7 @@ pub fn run<'a, 'c: 'a>(
             println!("Turn {} has finished. Press enter key to continue", {
                 turn + 1
             });
-            stdin().read(&mut [0]).unwrap();
+            stdin().read_line(&mut String::new()).unwrap();
         }
     }
 

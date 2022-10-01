@@ -32,15 +32,14 @@ pub struct TrainDeckArgs {
     inventory_path: PathBuf,
 
     /// a path to a deck file used by the opponent for evaluation.
-    /// if not specified, self deck under training is used.
+    /// if not specified, best deck from the previous generation is used.
     #[clap(
         short,
         long,
         value_parser,
         value_hint=ValueHint::FilePath,
-        default_value = "data/decks/starter",
     )]
-    evaluation_deck_path: PathBuf,
+    evaluation_deck_path: Option<PathBuf>,
 
     /// a path to a deck file used by the opponent for validation.
     #[clap(
@@ -323,14 +322,19 @@ impl<'a> TrainDeck<'a> {
             "elite-count must be smaller than population-size"
         );
 
-        let evaluation_deck = card::card_ids_to_card_refs(
-            &self.context.all_cards,
-            &card::load_deck(&self.args.evaluation_deck_path),
-        );
         let validation_deck = card::card_ids_to_card_refs(
             &self.context.all_cards,
             &card::load_deck(&self.args.validation_deck_path),
         );
+
+        let loaded_evaluation_deck: Vec<&Card> = if let Some(eval_deck_path) =
+            &self.args.evaluation_deck_path
+        {
+            card::card_ids_to_card_refs(&self.context.all_cards, &card::load_deck(eval_deck_path))
+        } else {
+            // it's not used.
+            vec![]
+        };
 
         let mut population = self.create_initial_population();
         let max_epoch = self.args.max_generation;
@@ -343,9 +347,23 @@ impl<'a> TrainDeck<'a> {
                 .enumerate()
                 .take(self.args.elite_count)
                 .for_each(|(i, v)| info!("  {}: {}", i, Card::format_cards(v)));
+
+            let evaluation_deck: &Vec<&Card> = if self.args.evaluation_deck_path.is_none() {
+                info!(
+                    "Opponent uses the best deck: {}",
+                    Card::format_cards(&population[0])
+                );
+                &population[0]
+            } else {
+                info!(
+                    "Opponent uses the loaded deck: {}",
+                    Card::format_cards(&loaded_evaluation_deck)
+                );
+                &loaded_evaluation_deck
+            };
+
             info!("Running  {} battles...", battles_count);
-            //let mut reports = self.run_league(board, &population);
-            let mut reports = self.evaluate_population(&population, &evaluation_deck);
+            let mut reports = self.evaluate_population(&population, evaluation_deck);
 
             // Validation
             info!("Validating...");
