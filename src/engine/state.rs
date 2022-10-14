@@ -1,4 +1,9 @@
-use std::{cmp::Ordering, collections::HashMap, fmt::Display};
+use std::{
+    cmp::Ordering,
+    collections::HashMap,
+    fmt::Display,
+    hash::{Hash, Hasher},
+};
 
 use log::*;
 use more_asserts::*;
@@ -12,10 +17,10 @@ use super::{
     game::{Action, PlayerId},
 };
 
-#[derive(Debug, Clone)]
-pub struct PlayerState<'a> {
-    hands: Vec<&'a Card>,
-    deck: Vec<&'a Card>,
+#[derive(Debug, Clone, Hash)]
+pub struct PlayerState<'c> {
+    hands: Vec<&'c Card>,
+    deck: Vec<&'c Card>,
 }
 
 impl<'a> PlayerState<'a> {
@@ -26,7 +31,7 @@ impl<'a> PlayerState<'a> {
         }
     }
 
-    pub fn get_hands(&self) -> &[&Card] {
+    pub fn get_hands(&self) -> &[&'a Card] {
         &self.hands
     }
 
@@ -66,9 +71,21 @@ impl<'a> Display for PlayerState<'a> {
     }
 }
 
-// TODO: Rename it to PublicState
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Phase {
+    Initial,
+    PlayerHandDealedOnce,
+    PlayerHandConfirmed,
+    OpponentHandDealedOnce,
+    OpponentHandConfirmed,
+    Running,
+    End,
+}
+
+/// Observable information about the current state of the game.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct State {
+    pub phase: Phase,
     pub board: Board,
     pub turn: i32,
     pub player_special_count: i32,
@@ -77,12 +94,14 @@ pub struct State {
 
 impl State {
     pub fn new(
+        phase: Phase,
         board: Board,
         turn: i32,
         player_special_count: i32,
         opponent_special_count: i32,
-    ) -> State {
-        State {
+    ) -> Self {
+        Self {
+            phase,
             board,
             turn,
             player_special_count,
@@ -273,8 +292,10 @@ fn has_touching_point(
     false
 }
 
+// TODO: Consider to move test utils under a separate module so that other
+// tests can use them without making the `tests` mod public.
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::engine::{board, card, game::Rotation};
 
@@ -282,13 +303,15 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    fn new_test_state(
+    pub fn new_test_state(
+        phase: Phase,
         lines: &[&str],
         turn: i32,
         player_special_count: i32,
         opponent_special_count: i32,
     ) -> State {
         State::new(
+            phase,
             new_test_board(lines),
             turn,
             player_special_count,
@@ -296,19 +319,24 @@ mod tests {
         )
     }
 
-    fn new_test_board(lines: &[&str]) -> crate::engine::board::Board {
+    pub fn new_test_board(lines: &[&str]) -> crate::engine::board::Board {
         let lines: Vec<String> = lines.iter().map(|s| String::from(*s)).collect();
         board::load_board_from_lines(String::from("test board"), &lines)
     }
 
-    fn new_test_card(lines: &[&str]) -> crate::engine::card::Card {
+    pub fn new_test_card(lines: &[&str]) -> crate::engine::card::Card {
         // Using a huge special cost to prevent test codes accidentally
         // use a special attack.
         new_test_card_with_special_cost(lines, 42)
     }
 
-    fn new_test_card_with_special_cost(
+    fn new_test_card_with_special_cost(lines: &[&str], special_cost: i32) -> Card {
+        new_test_card_impl(lines, 42, special_cost)
+    }
+
+    pub fn new_test_card_impl(
         lines: &[&str],
+        id: u32,
         special_cost: i32,
     ) -> crate::engine::card::Card {
         let lines: Vec<String> = lines.iter().map(|s| String::from(*s)).collect();
@@ -322,7 +350,7 @@ mod tests {
             })
             .sum();
         card::load_card_from_lines(
-            42,
+            id,
             String::from("test card"),
             cell_cnt,
             special_cost,
@@ -335,7 +363,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let state = new_test_state(&[
+        let state = new_test_state(
+            Phase::Running,
+            &[
             "########",
             "#...P..#",
             "########"
@@ -393,7 +423,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let state = new_test_state(&[
+        let state = new_test_state(
+            Phase::Running,
+            &[
             "######",
             "#P.o.#",
             "######"
@@ -420,7 +452,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let state = new_test_state(&[
+        let state = new_test_state(
+            Phase::Running,
+            &[
             "########",
             "#.....P#",
             "########"
@@ -463,7 +497,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let state = new_test_state(&[
+        let state = new_test_state(
+            Phase::Running,
+            &[
             "#########",
             "####..###",
             "####.####",
@@ -544,7 +580,9 @@ mod tests {
         ], 2);
 
         #[rustfmt::skip]
-        let state = new_test_state(&[
+        let state = new_test_state(
+            Phase::Running,
+            &[
             "###",
             "#.#",
             "#.#",
@@ -571,7 +609,9 @@ mod tests {
         ));
 
         #[rustfmt::skip]
-        let state = new_test_state(&[
+        let state = new_test_state(
+            Phase::Running,
+            &[
             "###",
             "#.#",
             "#.#",
@@ -598,7 +638,9 @@ mod tests {
         ));
 
         #[rustfmt::skip]
-        let state = new_test_state(&[
+        let state = new_test_state(
+            Phase::Running,
+            &[
             "###",
             "#o#",
             "#p#",
@@ -638,7 +680,9 @@ mod tests {
         ));
 
         #[rustfmt::skip]
-        let state = new_test_state(&[
+        let state = new_test_state(
+            Phase::Running,
+            &[
             "###",
             "#P#",
             "#.#",
@@ -676,7 +720,9 @@ mod tests {
         ], 2);
 
         #[rustfmt::skip]
-        let state = new_test_state(&[
+        let state = new_test_state(
+            Phase::Running,
+            &[
             "###",
             "#.#",
             "#.#",
@@ -703,7 +749,9 @@ mod tests {
         ));
 
         #[rustfmt::skip]
-        let state = new_test_state(&[
+        let state = new_test_state(
+            Phase::Running,
+            &[
             "###",
             "#.#",
             "#.#",
@@ -734,7 +782,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let mut state = new_test_state(&[
+        let mut state = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#.....#",
@@ -774,7 +824,9 @@ mod tests {
         );
 
         #[rustfmt::skip]
-        let expected = new_test_state(&[
+        let expected = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#.pOo.#",
             "#.P.O.#",
@@ -796,7 +848,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let mut state = new_test_state(&[
+        let mut state = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#.....#",
@@ -834,7 +888,9 @@ mod tests {
         );
 
         #[rustfmt::skip]
-        let expected = new_test_state(&[
+        let expected = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#pP#Oo#",
@@ -856,7 +912,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let mut state = new_test_state(&[
+        let mut state = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#.....#",
@@ -900,7 +958,9 @@ mod tests {
 
         // smaller card should be prioritized
         #[rustfmt::skip]
-        let expected = new_test_state(&[
+        let expected = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#pPpOo#",
@@ -922,7 +982,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let mut state = new_test_state(&[
+        let mut state = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#.....#",
@@ -966,7 +1028,9 @@ mod tests {
 
         // smaller card should be prioritized
         #[rustfmt::skip]
-        let expected = new_test_state(&[
+        let expected = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#pPOoo#",
@@ -988,7 +1052,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let mut state = new_test_state(&[
+        let mut state = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#.....#",
@@ -1028,7 +1094,9 @@ mod tests {
         // Opponent used special attack.
         // The conflicted cell should become a wall.
         #[rustfmt::skip]
-        let expected = new_test_state(&[
+        let expected = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#pP#Oo#",
@@ -1050,7 +1118,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let mut state = new_test_state(&[
+        let mut state = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#.....#",
@@ -1082,7 +1152,9 @@ mod tests {
         // Opponent used special attack.
         // The conflicted cell should become a wall.
         #[rustfmt::skip]
-        let expected = new_test_state(&[
+        let expected = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#pPp..#",
@@ -1104,7 +1176,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let mut state = new_test_state(&[
+        let mut state = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#.....#",
@@ -1138,7 +1212,9 @@ mod tests {
         // Opponent used special attack.
         // The conflicted cell should become a wall.
         #[rustfmt::skip]
-        let expected = new_test_state(&[
+        let expected = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#.pOp.#",
             "#.ppp.#",
@@ -1160,7 +1236,9 @@ mod tests {
         init();
 
         #[rustfmt::skip]
-        let mut state = new_test_state(&[
+        let mut state = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..O..#",
             "#.....#",
@@ -1207,7 +1285,9 @@ mod tests {
         // Opponent used special attack.
         // The conflicted cell should become a wall.
         #[rustfmt::skip]
-        let expected = new_test_state(&[
+        let expected = new_test_state(
+            Phase::Running,
+            &[
             "#######",
             "#..OoP#",
             "#...oo#",

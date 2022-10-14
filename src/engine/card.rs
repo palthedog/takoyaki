@@ -199,6 +199,12 @@ impl PartialEq for Card {
     }
 }
 
+impl std::hash::Hash for Card {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
 pub fn load_cards(cards_dir: &str) -> HashMap<u32, Card> {
     info!("Start loading card data from: {}", cards_dir);
 

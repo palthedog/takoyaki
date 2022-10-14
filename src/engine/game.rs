@@ -16,7 +16,13 @@ pub struct Context {
     pub enabled_step_execution: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+impl Context {
+    pub fn card_ref(&self, card_id: u32) -> &Card {
+        self.all_cards.get(&card_id).unwrap()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PlayerId {
     Player,
     Opponent,

@@ -6,11 +6,11 @@ use crate::engine::{
     state::{self, State},
 };
 
-pub fn list_valid_actions<'a>(
+pub fn list_valid_actions<'c>(
     state: &State,
-    cards: &[&'a Card],
+    cards: &[&'c Card],
     player_id: PlayerId,
-    actions: &mut Vec<Action<'a>>,
+    actions: &mut Vec<Action<'c>>,
 ) {
     actions.clear();
 

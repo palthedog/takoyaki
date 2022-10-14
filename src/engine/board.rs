@@ -9,7 +9,7 @@ use log::*;
 
 use super::game::PlayerId;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BoardCell {
     None,
     Wall,
@@ -73,7 +73,7 @@ impl Display for BoardPosition {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Board {
     name: String,
     cells: Vec<Vec<BoardCell>>,
