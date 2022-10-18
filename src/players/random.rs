@@ -31,15 +31,6 @@ impl Player for RandomPlayer {
         self.player_id = player_id;
     }
 
-    fn get_deck<'a>(&mut self, inventory_cards: &[&'a Card]) -> Vec<&'a Card> {
-        if inventory_cards.len() == game::DECK_SIZE {
-            return inventory_cards.to_vec();
-        }
-        let mut v = inventory_cards.to_vec();
-        let (deck, _) = v.partial_shuffle(&mut self.rng, game::DECK_SIZE);
-        deck.to_vec()
-    }
-
     fn need_redeal_hands(&mut self, _dealed_cards: &[&Card]) -> bool {
         self.rng.gen_bool(0.5)
     }

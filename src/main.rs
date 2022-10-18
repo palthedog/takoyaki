@@ -5,13 +5,14 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueHint};
 use log::*;
+use rand::seq::SliceRandom;
 use rand_mt::Mt64;
 
 use takoyaki::{
     engine::{
         board,
         card::{self, Card},
-        game::Context,
+        game::{self, Context},
     },
     players::random::RandomPlayer,
     runner,
@@ -83,11 +84,11 @@ fn run_rand(
     let mut player = RandomPlayer::new(rng.next_u64());
     let mut opponent = RandomPlayer::new(rng.next_u64());
 
-    let player_inventory_cards: Vec<&Card> = match player_deck_path {
+    let mut player_inventory_cards: Vec<&Card> = match player_deck_path {
         Some(path) => card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(path)),
         None => context.all_cards.values().collect(),
     };
-    let opponent_inventory_cards: Vec<&Card> = match opponent_deck_path {
+    let mut opponent_inventory_cards: Vec<&Card> = match opponent_deck_path {
         Some(path) => card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(path)),
         None => context.all_cards.values().collect(),
     };
@@ -96,10 +97,14 @@ fn run_rand(
     let mut opponent_won_cnt = 0;
     let mut draw_cnt = 0;
     for n in 0..play_cnt {
+        let (player_deck, _) = player_inventory_cards.partial_shuffle(&mut rng, game::DECK_SIZE);
+        let (opponent_deck, _) =
+            opponent_inventory_cards.partial_shuffle(&mut rng, game::DECK_SIZE);
+
         let (p, o) = runner::run(
             context,
-            &player_inventory_cards,
-            &opponent_inventory_cards,
+            &player_deck,
+            &opponent_deck,
             &mut player,
             &mut opponent,
             &mut rng,

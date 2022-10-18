@@ -16,32 +16,25 @@ use crate::{
 
 use super::{utils, Player};
 
-pub struct MctsPlayer {
+pub struct MctsPlayer<'c> {
     player_id: PlayerId,
+    initial_deck: Vec<&'c Card>,
     rng: Mt64,
 }
 
-impl MctsPlayer {
-    pub fn new(seed: u64) -> Self {
+impl<'c> MctsPlayer<'c> {
+    pub fn new(deck: Vec<&'c Card>, seed: u64) -> Self {
         MctsPlayer {
             player_id: PlayerId::Player,
+            initial_deck: deck,
             rng: Mt64::new(seed),
         }
     }
 }
 
-impl Player for MctsPlayer {
+impl<'c> Player for MctsPlayer<'c> {
     fn init_game(&mut self, player_id: PlayerId, _board: &Board) {
         self.player_id = player_id;
-    }
-
-    fn get_deck<'a>(&mut self, inventory_cards: &[&'a Card]) -> Vec<&'a Card> {
-        if inventory_cards.len() == game::DECK_SIZE {
-            return inventory_cards.to_vec();
-        }
-        let mut v = inventory_cards.to_vec();
-        let (deck, _) = v.partial_shuffle(&mut self.rng, game::DECK_SIZE);
-        deck.to_vec()
     }
 
     fn need_redeal_hands(&mut self, _dealed_cards: &[&Card]) -> bool {

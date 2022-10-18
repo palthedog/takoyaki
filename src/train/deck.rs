@@ -66,7 +66,7 @@ pub struct TrainDeckArgs {
 
     /// Top `elite_count` genes are always inherited to the next generation.
     /// Rest of the population is filled by crossover/mutation.
-    #[clap(long, short, value_parser, default_value_t = 3)]
+    #[clap(long, value_parser, default_value_t = 3)]
     elite_count: usize,
 
     #[clap(long, short, value_parser, default_value_t = 0.01)]

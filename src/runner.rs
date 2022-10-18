@@ -14,43 +14,42 @@ use crate::{
 
 pub fn deal_hands<'a>(
     rng: &mut impl Rng,
-    all_cards: &[&'a Card],
+    deck: &[&'a Card],
     player: &mut impl Player,
 ) -> PlayerState<'a> {
-    let mut deck_cards = player.get_deck(all_cards);
+    let mut deck = deck.to_vec();
     debug!(
         "Deck: {:#?}",
-        deck_cards
-            .iter()
+        deck.iter()
             .map(|card| card.get_name())
             .collect::<Vec<&str>>()
     );
 
-    deck_cards.shuffle(rng);
+    deck.shuffle(rng);
 
-    if player.need_redeal_hands(&deck_cards[0..game::HAND_SIZE]) {
-        deck_cards.shuffle(rng);
+    if player.need_redeal_hands(&deck[0..game::HAND_SIZE]) {
+        deck.shuffle(rng);
     }
 
-    PlayerState::new(
-        &deck_cards[0..game::HAND_SIZE],
-        &deck_cards[game::HAND_SIZE..],
-    )
+    PlayerState::new(&deck[0..game::HAND_SIZE], &deck[game::HAND_SIZE..])
 }
 
 pub fn run<'a, 'c: 'a>(
     context: &Context,
-    player_inventory_cards: &[&'c Card],
-    opponent_inventory_cards: &[&'c Card],
+    player_deck: &[&'c Card],
+    opponent_deck: &[&'c Card],
     player: &'a mut impl Player,
     opponent: &'a mut impl Player,
     rng: &mut impl Rng,
 ) -> (i32, i32) {
+    assert_eq!(game::DECK_SIZE, player_deck.len());
+    assert_eq!(game::DECK_SIZE, opponent_deck.len());
+
     player.init_game(PlayerId::Player, &context.board);
     opponent.init_game(PlayerId::Opponent, &context.board);
 
-    let mut player_state = deal_hands(rng, player_inventory_cards, player);
-    let mut opponent_state = deal_hands(rng, opponent_inventory_cards, opponent);
+    let mut player_state = deal_hands(rng, player_deck, player);
+    let mut opponent_state = deal_hands(rng, opponent_deck, opponent);
     debug!("Player states initialized");
     debug!("player: {}\nopponent: {}", player_state, opponent_state);
     let mut state = State::new(context.board.clone(), 0, 0, 0, vec![], vec![]);
