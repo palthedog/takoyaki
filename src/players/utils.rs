@@ -6,14 +6,12 @@ use crate::engine::{
     state::{self, State},
 };
 
-pub fn list_valid_actions<'c>(
+pub fn append_valid_actions<'c>(
     state: &State,
     cards: &[&'c Card],
     player_id: PlayerId,
     actions: &mut Vec<Action<'c>>,
 ) {
-    actions.clear();
-
     let (width, height) = state.board.get_size();
     for card in cards {
         actions.push(Action::Pass(card));

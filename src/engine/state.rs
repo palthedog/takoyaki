@@ -71,41 +71,34 @@ impl<'a> Display for PlayerState<'a> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Phase {
-    Initial,
-    PlayerHandDealedOnce,
-    PlayerHandConfirmed,
-    OpponentHandDealedOnce,
-    OpponentHandConfirmed,
-    Running,
-    End,
-}
-
 /// Observable information about the current state of the game.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct State {
-    pub phase: Phase,
     pub board: Board,
     pub turn: i32,
     pub player_special_count: i32,
     pub opponent_special_count: i32,
+
+    pub player_consumed_cards: Vec<u32>,
+    pub opponent_consumed_cards: Vec<u32>,
 }
 
 impl State {
     pub fn new(
-        phase: Phase,
         board: Board,
         turn: i32,
         player_special_count: i32,
         opponent_special_count: i32,
+        player_consumed_cards: Vec<u32>,
+        opponent_consumed_cards: Vec<u32>,
     ) -> Self {
         Self {
-            phase,
             board,
             turn,
             player_special_count,
             opponent_special_count,
+            player_consumed_cards,
+            opponent_consumed_cards,
         }
     }
 }
@@ -147,6 +140,15 @@ pub fn update_state(state: &mut State, player_action: &Action, opponent_action: 
     assert_le!(activated_cell_cnts.0, activated_cell_cnts_later.0);
     assert_le!(activated_cell_cnts.1, activated_cell_cnts_later.1);
 
+    // consume cards
+    state
+        .player_consumed_cards
+        .push(player_action.get_consumed_card().get_id());
+    state
+        .opponent_consumed_cards
+        .push(opponent_action.get_consumed_card().get_id());
+
+    // consume special points
     maybe_consume_special_points(&mut state.player_special_count, player_action);
     state.player_special_count += activated_cell_cnts_later.0 - activated_cell_cnts.0;
     if player_action.is_pass() {
@@ -304,24 +306,25 @@ pub mod tests {
     }
 
     pub fn new_test_state(
-        phase: Phase,
         lines: &[&str],
         turn: i32,
         player_special_count: i32,
         opponent_special_count: i32,
+        player_consumed_cards: Vec<u32>,
+        opponent_consumed_cards: Vec<u32>,
     ) -> State {
         State::new(
-            phase,
             new_test_board(lines),
             turn,
             player_special_count,
             opponent_special_count,
+            player_consumed_cards,
+            opponent_consumed_cards,
         )
     }
 
     pub fn new_test_board(lines: &[&str]) -> crate::engine::board::Board {
-        let lines: Vec<String> = lines.iter().map(|s| String::from(*s)).collect();
-        board::load_board_from_lines(String::from("test board"), &lines)
+        board::load_board_from_lines(String::from("test board"), lines)
     }
 
     pub fn new_test_card(lines: &[&str]) -> crate::engine::card::Card {
@@ -364,12 +367,11 @@ pub mod tests {
 
         #[rustfmt::skip]
         let state = new_test_state(
-            Phase::Running,
             &[
             "########",
             "#...P..#",
             "########"
-        ], 0, 0, 0);
+        ], 0, 0, 0, vec![], vec![]);
         let card = new_test_card(&["==="]);
 
         // NO conflict
@@ -424,12 +426,11 @@ pub mod tests {
 
         #[rustfmt::skip]
         let state = new_test_state(
-            Phase::Running,
             &[
             "######",
             "#P.o.#",
             "######"
-        ], 0, 0, 0);
+        ], 0, 0, 0, vec![], vec![]);
         let card = new_test_card(&["==="]);
 
         assert!(!is_valid_action(
@@ -453,12 +454,11 @@ pub mod tests {
 
         #[rustfmt::skip]
         let state = new_test_state(
-            Phase::Running,
             &[
             "########",
             "#.....P#",
             "########"
-        ], 0, 0, 0);
+        ], 0, 0, 0, vec![], vec![]);
         let card = new_test_card(&["==="]);
 
         // NO touching point
@@ -498,7 +498,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let state = new_test_state(
-            Phase::Running,
             &[
             "#########",
             "####..###",
@@ -509,7 +508,7 @@ pub mod tests {
             "####.####",
             "###..####",
             "#########",
-        ], 0, 0, 0);
+        ], 0, 0, 0, vec![], vec![]);
         #[rustfmt::skip]
         let card = new_test_card(&[
             "===",
@@ -581,7 +580,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let state = new_test_state(
-            Phase::Running,
             &[
             "###",
             "#.#",
@@ -592,7 +590,9 @@ pub mod tests {
         ],
         0,
         2, // player's special points
-        0);
+        0,
+        vec![],
+        vec![]);
         // Special attack can't be triggered without special ink on the board.
         assert!(!is_valid_action(
             &state,
@@ -610,7 +610,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let state = new_test_state(
-            Phase::Running,
             &[
             "###",
             "#.#",
@@ -621,7 +620,9 @@ pub mod tests {
         ],
         0,
         2,  // player's special points
-        0);
+        0,
+        vec![],
+        vec![]);
         // Now we have a special ink.
         assert!(is_valid_action(
             &state,
@@ -639,7 +640,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let state = new_test_state(
-            Phase::Running,
             &[
             "###",
             "#o#",
@@ -650,7 +650,7 @@ pub mod tests {
         ],
         0,
         2,
-        0);
+        0, vec![], vec![]);
         // Special attack can overdraw other ink
         assert!(is_valid_action(
             &state,
@@ -681,7 +681,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let state = new_test_state(
-            Phase::Running,
             &[
             "###",
             "#P#",
@@ -692,7 +691,7 @@ pub mod tests {
         ],
         0,
         2,
-        0);
+        0, vec![], vec![]);
         // Special attack can NOT overdraw player's SPECIAL ink too
         assert!(!is_valid_action(
             &state,
@@ -721,7 +720,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let state = new_test_state(
-            Phase::Running,
             &[
             "###",
             "#.#",
@@ -732,7 +730,7 @@ pub mod tests {
         ],
         0,
         2,  // player's special points
-        0);
+        0, vec![], vec![]);
         // Now we have a special ink.
         assert!(is_valid_action(
             &state,
@@ -750,7 +748,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let state = new_test_state(
-            Phase::Running,
             &[
             "###",
             "#.#",
@@ -761,7 +758,7 @@ pub mod tests {
         ],
         0,
         1,  // player's special points is NOT enough.
-        0);
+        0, vec![], vec![]);
         assert!(!is_valid_action(
             &state,
             PlayerId::Player,
@@ -783,7 +780,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let mut state = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -792,7 +788,7 @@ pub mod tests {
             "#######"],
             0,
             0,
-            0
+            0, vec![], vec![]
         );
         #[rustfmt::skip]
         let card = new_test_card(&[
@@ -825,7 +821,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let expected = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#.pOo.#",
@@ -834,7 +829,7 @@ pub mod tests {
             "#######"],
             1,
             0,
-            0
+            0, vec![42], vec![42]
         );
         assert_eq!(
             state, expected,
@@ -849,7 +844,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let mut state = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -858,7 +852,7 @@ pub mod tests {
             "#######"],
             0,
             0,
-            0
+            0, vec![], vec![]
         );
         #[rustfmt::skip]
         let card = new_test_card(&[
@@ -889,7 +883,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let expected = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -898,7 +891,7 @@ pub mod tests {
             "#######"],
             1,
             0,
-            0
+            0, vec![42], vec![42]
         );
         assert_eq!(
             state, expected,
@@ -913,7 +906,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let mut state = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -922,7 +914,7 @@ pub mod tests {
             "#######"],
             0,
             0,
-            0
+            0, vec![], vec![]
         );
         #[rustfmt::skip]
         let card = new_test_card(&[
@@ -959,7 +951,6 @@ pub mod tests {
         // smaller card should be prioritized
         #[rustfmt::skip]
         let expected = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -968,7 +959,7 @@ pub mod tests {
             "#######"],
             1,
             0,
-            0
+            0, vec![42], vec![42]
         );
         assert_eq!(
             state, expected,
@@ -983,7 +974,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let mut state = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -992,7 +982,7 @@ pub mod tests {
             "#######"],
             0,
             0,
-            0
+            0, vec![], vec![]
         );
         #[rustfmt::skip]
         let card = new_test_card(&[
@@ -1029,7 +1019,6 @@ pub mod tests {
         // smaller card should be prioritized
         #[rustfmt::skip]
         let expected = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -1038,7 +1027,7 @@ pub mod tests {
             "#######"],
             1,
             0,
-            0
+            0, vec![42], vec![42]
         );
         assert_eq!(
             state, expected,
@@ -1053,7 +1042,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let mut state = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -1062,7 +1050,7 @@ pub mod tests {
             "#######"],
             0,
             0,
-            4
+            4, vec![], vec![]
         );
         #[rustfmt::skip]
         let card = new_test_card_with_special_cost(&[
@@ -1095,7 +1083,6 @@ pub mod tests {
         // The conflicted cell should become a wall.
         #[rustfmt::skip]
         let expected = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -1104,7 +1091,7 @@ pub mod tests {
             "#######"],
             1,
             0,
-            3
+            3, vec![42], vec![42]
         );
         assert_eq!(
             state, expected,
@@ -1119,7 +1106,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let mut state = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -1128,7 +1114,7 @@ pub mod tests {
             "#######"],
             0,
             0,
-            0
+            0, vec![], vec![]
         );
         #[rustfmt::skip]
         let card = new_test_card(&[
@@ -1153,7 +1139,6 @@ pub mod tests {
         // The conflicted cell should become a wall.
         #[rustfmt::skip]
         let expected = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -1162,7 +1147,8 @@ pub mod tests {
             "#######"],
             1,
             0,
-            1 // Passed player earned a one special point.
+            1, // Passed player earned a one special point.
+            vec![42], vec![42]
         );
         assert_eq!(
             state, expected,
@@ -1177,7 +1163,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let mut state = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -1186,7 +1171,7 @@ pub mod tests {
             "#######"],
             0,
             0,
-            0
+            0, vec![], vec![]
         );
         #[rustfmt::skip]
         let card = new_test_card(&[
@@ -1213,7 +1198,6 @@ pub mod tests {
         // The conflicted cell should become a wall.
         #[rustfmt::skip]
         let expected = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#.pOp.#",
@@ -1222,7 +1206,8 @@ pub mod tests {
             "#######"],
             1,
             1, // Player has a surrounded special ink @ [33]
-            2 // Passed opponent earned one more special point.
+            2, // Passed opponent earned one more special point.
+            vec![42], vec![42]
         );
         assert_eq!(
             state, expected,
@@ -1237,7 +1222,6 @@ pub mod tests {
 
         #[rustfmt::skip]
         let mut state = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..O..#",
@@ -1246,7 +1230,7 @@ pub mod tests {
             "#######"],
             0,
             0,
-            0
+            0, vec![], vec![]
         );
         #[rustfmt::skip]
         let card = new_test_card(&[
@@ -1286,7 +1270,6 @@ pub mod tests {
         // The conflicted cell should become a wall.
         #[rustfmt::skip]
         let expected = new_test_state(
-            Phase::Running,
             &[
             "#######",
             "#..OoP#",
@@ -1295,7 +1278,7 @@ pub mod tests {
             "#######"],
             1,
             1, // Player has a surrounded special ink @ [33]
-            0
+            0, vec![42], vec![42]
         );
         assert_eq!(
             state, expected,

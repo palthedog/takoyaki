@@ -217,10 +217,11 @@ pub fn load_board(board_path: &PathBuf) -> Board {
     let name = String::from(name.trim());
 
     let board_lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
-    load_board_from_lines(name, &board_lines)
+    let refs: Vec<&str> = board_lines.iter().map(AsRef::as_ref).collect();
+    load_board_from_lines(name, &refs)
 }
 
-pub fn load_board_from_lines(name: String, lines: &[String]) -> Board {
+pub fn load_board_from_lines(name: String, lines: &[&str]) -> Board {
     let cells = read_cells(lines);
     let width: i32 = cells[0].len() as i32;
     let height: i32 = cells.len() as i32;
@@ -232,7 +233,7 @@ pub fn load_board_from_lines(name: String, lines: &[String]) -> Board {
     }
 }
 
-fn read_cells(lines: &[String]) -> Vec<Vec<BoardCell>> {
+fn read_cells(lines: &[&str]) -> Vec<Vec<BoardCell>> {
     let mut cells: Vec<Vec<BoardCell>> = vec![];
     for line in lines {
         let cell_line: Vec<BoardCell> = line

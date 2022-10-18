@@ -46,7 +46,7 @@ impl Player for RandomPlayer {
 
     fn get_action<'a>(&mut self, state: &State, player_state: &'a PlayerState) -> Action<'a> {
         let mut actions_buffer: Vec<Action> = vec![];
-        utils::list_valid_actions(
+        utils::append_valid_actions(
             state,
             player_state.get_hands(),
             self.player_id,

@@ -144,6 +144,7 @@ fn print_rate(p_cnt: usize, o_cnt: usize, draw_cnt: usize) {
 
 fn main() {
     env_logger::init();
+
     let args = Cli::parse();
 
     let all_cards = card::load_cards(&args.card_dir);
