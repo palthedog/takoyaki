@@ -6,7 +6,7 @@ use rand::{seq::SliceRandom, Rng};
 use crate::{
     engine::{
         card::Card,
-        game::{self, Context, PlayerId},
+        game::{self, Action, Context, PlayerId},
         state::{self, PlayerCardState, State},
     },
     players::*,
@@ -71,15 +71,8 @@ pub fn run<'a, 'c: 'a>(
         }
 
         state::update_state(&mut state, &player_action, &opponent_action);
-
-        debug!("Updating player/opponent state");
-        let mut tmp = player_state.clone();
-        state::update_player_state(&mut tmp, &player_action);
-        player_state = tmp;
-
-        let mut tmp = opponent_state.clone();
-        state::update_player_state(&mut tmp, &opponent_action);
-        opponent_state = tmp;
+        state::update_player_state(&mut player_state, &player_action);
+        state::update_player_state(&mut opponent_state, &opponent_action);
 
         debug!("State is updated ->: {}", state);
         debug!("Player state: {}", player_state);

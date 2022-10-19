@@ -1,15 +1,18 @@
 use itertools::Itertools;
+use log::debug;
 use more_asserts::*;
 use once_cell::sync::OnceCell;
 use rand::seq::SliceRandom;
 use rand::Rng;
 use rand_mt::Mt64;
 
+use std::cell::RefCell;
+
 use crate::engine::{
     board::Board,
     card::Card,
     game::{self, Action, Context, PlayerId},
-    state::{self, PlayerCardState, State},
+    state::{self, update_state, PlayerCardState, State},
 };
 
 use super::{
@@ -52,18 +55,40 @@ impl<'c> Player<'c> for MctsPlayer<'c> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Statistic {
-    win_cnt: u32,
-    lose_cnt: u32,
-    draw_cnt: u32,
+    total_cnt: i32,
+    win_cnt: i32,
+    lose_cnt: i32,
+    draw_cnt: i32,
+    value: i32,
 }
 
 impl Default for Statistic {
     fn default() -> Self {
         Self {
+            total_cnt: 0,
             win_cnt: 0,
             lose_cnt: 0,
             draw_cnt: 0,
+            value: 0,
         }
+    }
+}
+
+impl Statistic {
+    fn update_with(&mut self, (p, o): (i32, i32)) {
+        self.total_cnt += 1;
+        if p == o {
+            self.draw_cnt += 1
+        } else if p > o {
+            self.win_cnt += 1
+        } else {
+            self.lose_cnt += 1
+        }
+        self.value += p - o;
+    }
+
+    fn get_expected_value(&self) -> f64 {
+        self.value as f64 / self.total_cnt as f64
     }
 }
 
@@ -158,7 +183,6 @@ struct Node<'c> {
     action: NodeAction<'c>,
 
     statistic: Statistic,
-    visit_count: u32,
 
     child_nodes: Vec<Node<'c>>,
     legal_actions: OnceCell<Vec<NodeAction<'c>>>,
@@ -180,7 +204,6 @@ impl<'c> Node<'c> {
             simultaneous_state,
             action,
             statistic: Statistic::default(),
-            visit_count: 0,
             child_nodes: vec![],
             legal_actions: OnceCell::default(),
         }
@@ -223,57 +246,89 @@ impl<'c> Traverser<'c> {
         &mut self,
         root_node: &'a mut Node<'c>,
         determinization: &Determinization<'c>,
-    ) -> &'a mut Node<'c> {
+    ) -> (&'a mut Node<'c>, Vec<NodeAction<'c>>) {
+        let mut history = vec![];
         let mut node: &'a mut Node<'c> = root_node;
         loop {
             if node.is_leaf() {
-                return node;
+                return (node, history);
             }
             node = self.select_child_node(node, determinization);
+            history.push(node.action.clone());
         }
     }
 
     fn traverse(&mut self, state: &State, hands: &[&'c Card], iterations: usize) {
         let mut root_node = self.create_root_node(state);
         for n in 0..iterations {
-            self.iterate(&mut root_node, hands);
+            let determinization = Determinization::new(
+                self.determinize_player_deck(&root_node.state, hands),
+                self.determinize_opponent_deck(&root_node.state),
+            );
+            self.iterate(&mut root_node, &determinization);
         }
     }
 
-    fn iterate(&mut self, root_node: &mut Node<'c>, hands: &[&'c Card]) {
-        let determinization = Determinization::new(
-            self.determinize_player_deck(&root_node.state, hands),
-            self.determinize_opponent_deck(&root_node.state),
-        );
+    fn iterate(&mut self, root_node: &mut Node<'c>, determinization: &Determinization<'c>) {
         // Selection
-        let mut leaf = self.select_leaf(root_node, &determinization);
+        debug!("Selection");
+        let (mut leaf, mut history) = self.select_leaf(root_node, determinization);
 
         // Expansion
-        if leaf.is_terminal() {
-            let mut leaf = self.expand(&mut leaf, &determinization);
-            let last_state = self.playout(leaf, &determinization);
-            leaf.visit_count += 1;
+        debug!("Expansion");
+        let leaf = if !leaf.is_terminal() {
+            let tmp = self.expand(&mut leaf, determinization);
+            history.push(tmp.action.clone());
+            tmp
         } else {
-            leaf.visit_count += 1;
+            leaf
         };
+
+        // Simulation
+        let result = self.playout(&leaf.state, determinization);
+
+        // Backpropagation
+        debug!("Backpropagation");
+        let mut node = root_node;
+        node.statistic.update_with(result);
+        for i in 0..history.len() {
+            node = node
+                .child_nodes
+                .iter_mut()
+                .find(|c| c.action == history[i])
+                .unwrap();
+            node.statistic.update_with(result);
+        }
     }
 
-    fn playout(&mut self, node: &Node, determinization: &Determinization<'c>) -> State {
-        /*
-               let mut state = node.state.clone();
-               let p_acts = vec![];
-               let o_acts = vec![];
-               let p_cards = determinization.player_cards.clone();
-               let o_cards = determinization.opponent_cards.clone();
-               loop {
-                   p_acts.clear();
-                   o_acts.clear();
+    fn playout(&mut self, state: &State, determinization: &Determinization<'c>) -> (i32, i32) {
+        let mut state = state.clone();
+        let mut p_state = determinization.player_cards.clone();
+        let mut o_state = determinization.opponent_cards.clone();
+        loop {
+            if state.is_end() {
+                debug!("Playout result: {}", state);
+                return state.board.get_scores();
+            }
+            let p_act =
+                self.choose_random_player_action(&state, PlayerId::Player, p_state.get_hands());
+            let o_act =
+                self.choose_random_player_action(&state, PlayerId::Opponent, o_state.get_hands());
+            state::update_state(&mut state, &p_act, &o_act);
+            state::update_player_state(&mut p_state, &p_act);
+            state::update_player_state(&mut o_state, &o_act);
+        }
+    }
 
-                   append_valid_actions(&state, &p_cards.hands, PlayerId::Player, &mut p_acts);
-                   append_valid_actions(&state, &o_cards.hands, PlayerId::Opponent, &mut o_acts);
-               }
-        */
-        todo!();
+    fn choose_random_player_action(
+        &mut self,
+        state: &State,
+        player_id: PlayerId,
+        hands: &[&'c Card],
+    ) -> Action<'c> {
+        let mut acts = vec![];
+        append_valid_actions(state, hands, player_id, &mut acts);
+        *acts.choose(&mut self.rng).unwrap()
     }
 
     fn expand<'a>(
@@ -359,12 +414,12 @@ impl<'c> Traverser<'c> {
 
         let mut filtered_nodes: Vec<&'a mut Node<'c>> =
             self.get_filtered_nodes(node, determinization);
-        let n_sum: u32 = filtered_nodes.iter().map(|n| n.visit_count).sum();
+        let n_sum: i32 = filtered_nodes.iter().map(|n| n.statistic.total_cnt).sum();
 
         let log_n_sum = (n_sum as f64).ln();
         for i in 0..filtered_nodes.len() {
             let child = &filtered_nodes[i];
-            assert_gt!(child.visit_count, 0);
+            assert_gt!(child.statistic.total_cnt, 0);
 
             let ucb1 = Self::calc_ucb1(log_n_sum, child);
             if ucb1 > max_ucb1 {
@@ -379,11 +434,10 @@ impl<'c> Traverser<'c> {
 
     fn calc_ucb1(log_n_sum: f64, child: &Node) -> f64 {
         const C: f64 = std::f64::consts::SQRT_2;
-        let n: f64 = child.visit_count.into();
-        let w: f64 = child.statistic.win_cnt.into();
-        let win_ratio: f64 = w / n;
-        let explore: f64 = (log_n_sum / n).sqrt();
-        win_ratio + C * explore
+        let value: f64 = child.statistic.get_expected_value();
+        let visits = child.statistic.total_cnt;
+        let explore: f64 = (log_n_sum / visits as f64).sqrt();
+        value + C * explore
     }
 
     fn precalculate_valid_actions(
@@ -509,6 +563,16 @@ mod tests {
                 "=",
                 "===",
             ],
+            &["="],
+            &["="],
+            &["="],
+            &["="],
+            &["="],
+            &["="],
+            &["="],
+            &["="],
+            &["="],
+            &["="],
         ]);
         #[rustfmt::skip]
         let board = board::load_board_from_lines(
@@ -525,21 +589,13 @@ mod tests {
             enabled_step_execution: false,
         };
         const SEED: u64 = 42;
-        let player_initial_deck = vec![
-            context.card_ref(0),
-            context.card_ref(1),
-            context.card_ref(2),
-            context.card_ref(3),
-            context.card_ref(4),
-        ];
-        let player_hands = vec![
-            context.card_ref(0),
-            context.card_ref(1),
-            context.card_ref(2),
-            context.card_ref(3),
-        ];
-        let player_deck = vec![context.card_ref(4)];
+        let player_initial_deck = context.all_cards.values().collect_vec();
+        let opponent_initial_deck = context.all_cards.values().collect_vec();
 
+        let (player_hands, player_deck) = player_initial_deck.split_at(game::HAND_SIZE);
+        let (opponent_hands, opponent_deck) = opponent_initial_deck.split_at(game::HAND_SIZE);
+
+        let player_initial_deck = context.all_cards.values().collect_vec();
         let mut traverser = Traverser::new(&context, player_initial_deck, SEED);
 
         let state = State::new(context.board.clone(), 0, 0, 0, vec![], vec![]);
@@ -553,16 +609,8 @@ mod tests {
         assert!(root_node.legal_actions.get().is_none());
 
         let determinization = Determinization::new(
-            PlayerCardState::new(player_hands, player_deck),
-            PlayerCardState::new(
-                vec![
-                    context.card_ref(0),
-                    context.card_ref(1),
-                    context.card_ref(2),
-                    context.card_ref(3),
-                ],
-                vec![context.card_ref(4)],
-            ),
+            PlayerCardState::new(player_hands.to_vec(), player_deck.to_vec()),
+            PlayerCardState::new(opponent_hands.to_vec(), opponent_deck.to_vec()),
         );
 
         // Note that there should be "5" legal actions on the root node.
@@ -572,17 +620,13 @@ mod tests {
 
         // Select leaf and expand for 5 times.
         for i in 1..=5 {
-            let leaf = traverser.select_leaf(&mut root_node, &determinization);
-            traverser.expand(leaf, &determinization);
+            traverser.iterate(&mut root_node, &determinization);
             // Checks that all expansion happen on the root node.
-            assert_eq!(NodeAction::Root, leaf.action);
-            assert_eq!(i, leaf.child_nodes.len());
+            assert_eq!(i, root_node.child_nodes.len());
         }
 
         // All child node should be expanded at this point.
-        let leaf = traverser.select_leaf(&mut root_node, &determinization);
-        traverser.expand(leaf, &determinization);
-        // So the root node is no longer a leaf node.
-        assert_ne!(NodeAction::Root, leaf.action);
+        traverser.select_leaf(&mut root_node, &determinization);
+        assert_eq!(5, root_node.child_nodes.len());
     }
 }
