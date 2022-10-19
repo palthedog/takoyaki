@@ -9,7 +9,7 @@ use crate::engine::{
     board::Board,
     card::Card,
     game::{self, Action, Context, PlayerId},
-    state::{self, PlayerState, State},
+    state::{self, PlayerCardState, State},
 };
 
 use super::{
@@ -43,8 +43,8 @@ impl<'c> Player<'c> for MctsPlayer<'c> {
         self.rng.gen_bool(0.5)
     }
 
-    fn get_action<'a>(&mut self, state: &State, player_state: &PlayerState<'c>) -> Action<'c> {
-        self.traverser.traverse(state, player_state, 2);
+    fn get_action<'a>(&mut self, state: &State, hands: &[&'c Card]) -> Action<'c> {
+        self.traverser.traverse(state, hands, 2);
 
         todo!("WIP");
     }
@@ -86,32 +86,16 @@ impl<'c> From<ChanceAction<'c>> for NodeAction<'c> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct CardsState<'c> {
-    // It must be sorted by card IDs.
-    pub hands: Vec<&'c Card>,
-
-    // It must be shuffled. Chance node deals a card from the top
-    // of the deck.
-    pub deck: Vec<&'c Card>,
-}
-
-impl<'c> CardsState<'c> {
-    fn new(hands: Vec<&'c Card>, deck: Vec<&'c Card>) -> Self {
-        CardsState { hands, deck }
-    }
-}
-
 /// Game state which is visible from a player.
 /// It includes presumed information (e.g. opponent's hand/deck)
 #[derive(Debug, PartialEq)]
 struct Determinization<'c> {
-    player_cards: CardsState<'c>,
-    opponent_cards: CardsState<'c>,
+    player_cards: PlayerCardState<'c>,
+    opponent_cards: PlayerCardState<'c>,
 }
 
 impl<'c> Determinization<'c> {
-    fn new(player_cards: CardsState<'c>, opponent_cards: CardsState<'c>) -> Self {
+    fn new(player_cards: PlayerCardState<'c>, opponent_cards: PlayerCardState<'c>) -> Self {
         Determinization {
             player_cards,
             opponent_cards,
@@ -249,16 +233,16 @@ impl<'c> Traverser<'c> {
         }
     }
 
-    fn traverse(&mut self, state: &State, player_state: &PlayerState<'c>, iterations: usize) {
+    fn traverse(&mut self, state: &State, hands: &[&'c Card], iterations: usize) {
         let mut root_node = self.create_root_node(state);
         for n in 0..iterations {
-            self.iterate(&mut root_node, player_state);
+            self.iterate(&mut root_node, hands);
         }
     }
 
-    fn iterate(&mut self, root_node: &mut Node<'c>, player_state: &PlayerState<'c>) {
+    fn iterate(&mut self, root_node: &mut Node<'c>, hands: &[&'c Card]) {
         let determinization = Determinization::new(
-            self.determinize_player_deck(&root_node.state, player_state),
+            self.determinize_player_deck(&root_node.state, hands),
             self.determinize_opponent_deck(&root_node.state),
         );
         // Selection
@@ -347,11 +331,11 @@ impl<'c> Traverser<'c> {
             .filter(|n| match n.action {
                 NodeAction::PlayerAction(PlayerId::Player, action) => determinization
                     .player_cards
-                    .hands
+                    .get_hands()
                     .contains(&action.get_consumed_card()),
                 NodeAction::PlayerAction(PlayerId::Opponent, action) => determinization
                     .opponent_cards
-                    .hands
+                    .get_hands()
                     .contains(&action.get_consumed_card()),
                 NodeAction::ChanceAction(_) => todo!(),
                 NodeAction::Root => {
@@ -405,16 +389,26 @@ impl<'c> Traverser<'c> {
     fn precalculate_valid_actions(
         &self,
         state: &State,
-        cards_state: &CardsState<'c>,
+        cards_state: &PlayerCardState<'c>,
         player_id: PlayerId,
     ) -> Vec<NodeAction<'c>> {
         let mut valid_actions = vec![];
-        utils::append_valid_actions(state, &cards_state.hands, player_id, &mut valid_actions);
+        utils::append_valid_actions(
+            state,
+            cards_state.get_hands(),
+            player_id,
+            &mut valid_actions,
+        );
 
         if player_id == PlayerId::Opponent {
             // For the opponent player, list up actions also for cards in deck so that
             // future playouts (which may have different determinized hands) can refer the precalculated actions.
-            utils::append_valid_actions(state, &cards_state.deck, player_id, &mut valid_actions);
+            utils::append_valid_actions(
+                state,
+                cards_state.get_deck(),
+                player_id,
+                &mut valid_actions,
+            );
         }
 
         valid_actions
@@ -437,35 +431,31 @@ impl<'c> Traverser<'c> {
         assert_eq!(expected_len, cards.len());
     }
 
-    fn determinize_opponent_deck(&mut self, state: &State) -> CardsState<'c> {
+    fn determinize_opponent_deck(&mut self, state: &State) -> PlayerCardState<'c> {
         let mut all_cards = self.context.all_cards.values().collect_vec();
         Self::filter_cards(&mut all_cards, &state.opponent_consumed_cards);
 
         all_cards.shuffle(&mut self.rng);
         let (hands, deck) = all_cards.split_at(game::HAND_SIZE);
 
-        CardsState::new(hands.to_vec(), deck.to_vec())
+        PlayerCardState::new(hands.to_vec(), deck.to_vec())
     }
 
     fn determinize_player_deck(
         &mut self,
         state: &State,
-        player_state: &PlayerState<'c>,
-    ) -> CardsState<'c> {
+        hands: &[&'c Card],
+    ) -> PlayerCardState<'c> {
         let mut deck_cards = self.player_initial_deck.clone();
 
-        let hand_ids: Vec<u32> = player_state
-            .get_hands()
-            .iter()
-            .map(|c| c.get_id())
-            .collect();
+        let hand_ids: Vec<u32> = hands.iter().map(|c| c.get_id()).collect();
         Self::filter_cards(&mut deck_cards, &hand_ids);
 
         Self::filter_cards(&mut deck_cards, &state.player_consumed_cards);
 
         // Shuffle cards in deck since the player don't know the order of deck.
         deck_cards.shuffle(&mut self.rng);
-        CardsState::new(player_state.get_hands().to_vec(), deck_cards)
+        PlayerCardState::new(hands.to_vec(), deck_cards)
     }
 
     /// Creates a node from an actual game state (visible from the player).
@@ -553,8 +543,6 @@ mod tests {
         let mut traverser = Traverser::new(&context, player_initial_deck, SEED);
 
         let state = State::new(context.board.clone(), 0, 0, 0, vec![], vec![]);
-        let player_state = PlayerState::new(&player_hands, &player_deck);
-
         let mut root_node = traverser.create_root_node(&state);
 
         // The root node is still a leaf node.
@@ -565,8 +553,8 @@ mod tests {
         assert!(root_node.legal_actions.get().is_none());
 
         let determinization = Determinization::new(
-            CardsState::new(player_hands.to_vec(), player_deck.to_vec()),
-            CardsState::new(
+            PlayerCardState::new(player_hands, player_deck),
+            PlayerCardState::new(
                 vec![
                     context.card_ref(0),
                     context.card_ref(1),

@@ -18,22 +18,26 @@ use super::{
     game::{Action, PlayerId},
 };
 
-#[derive(Debug, Clone, Hash)]
-pub struct PlayerState<'c> {
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct PlayerCardState<'c> {
     hands: Vec<&'c Card>,
     deck: Vec<&'c Card>,
 }
 
-impl<'a> PlayerState<'a> {
-    pub fn new(hands: &[&'a Card], deck: &[&'a Card]) -> PlayerState<'a> {
-        PlayerState {
-            hands: hands.to_vec(),
-            deck: deck.to_vec(),
+impl<'a> PlayerCardState<'a> {
+    pub fn new(hands: Vec<&'a Card>, deck: Vec<&'a Card>) -> PlayerCardState<'a> {
+        PlayerCardState {
+            hands: hands,
+            deck: deck,
         }
     }
 
     pub fn get_hands(&self) -> &[&'a Card] {
         &self.hands
+    }
+
+    pub fn get_deck(&self) -> &[&'a Card] {
+        &self.deck
     }
 
     // We may want a randomized version later for random simulation.
@@ -60,7 +64,7 @@ impl<'a> PlayerState<'a> {
     }
 }
 
-impl<'a> Display for PlayerState<'a> {
+impl<'a> Display for PlayerCardState<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Hands:[")?;
         for card in self.hands.iter() {
@@ -121,7 +125,7 @@ impl Display for State {
     }
 }
 
-pub fn update_player_state(player_state: &mut PlayerState, action: &Action) {
+pub fn update_player_state(player_state: &mut PlayerCardState, action: &Action) {
     // update hands
     player_state.consume_card(action.get_consumed_card());
     player_state.draw_card();

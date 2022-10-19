@@ -6,7 +6,7 @@ use crate::engine::{
     board::Board,
     card::Card,
     game::{Action, PlayerId},
-    state::{PlayerState, State},
+    state::State,
 };
 
 /// The base class for all player implementations.
@@ -16,5 +16,5 @@ pub trait Player<'c> {
     /// It will be called once before the first action.
     fn need_redeal_hands(&mut self, dealed_cards: &[&'c Card]) -> bool;
 
-    fn get_action<'a>(&mut self, state: &State, player_state: &PlayerState<'c>) -> Action<'c>;
+    fn get_action<'a>(&mut self, state: &State, hands: &[&'c Card]) -> Action<'c>;
 }

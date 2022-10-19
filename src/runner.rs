@@ -7,7 +7,7 @@ use crate::{
     engine::{
         card::Card,
         game::{self, Context, PlayerId},
-        state::{self, PlayerState, State},
+        state::{self, PlayerCardState, State},
     },
     players::*,
 };
@@ -16,7 +16,7 @@ pub fn deal_hands<'c>(
     rng: &mut impl Rng,
     deck: &[&'c Card],
     player: &mut impl Player<'c>,
-) -> PlayerState<'c> {
+) -> PlayerCardState<'c> {
     let mut deck = deck.to_vec();
     debug!(
         "Deck: {:#?}",
@@ -31,7 +31,10 @@ pub fn deal_hands<'c>(
         deck.shuffle(rng);
     }
 
-    PlayerState::new(&deck[0..game::HAND_SIZE], &deck[game::HAND_SIZE..])
+    PlayerCardState::new(
+        deck[0..game::HAND_SIZE].to_vec(),
+        deck[game::HAND_SIZE..].to_vec(),
+    )
 }
 
 pub fn run<'a, 'c: 'a>(
@@ -55,8 +58,8 @@ pub fn run<'a, 'c: 'a>(
     let mut state = State::new(context.board.clone(), 0, 0, 0, vec![], vec![]);
     for turn in 0..game::TURN_COUNT {
         debug!("Starting Turn {}", turn + 1);
-        let player_action = player.get_action(&state, &player_state);
-        let opponent_action = opponent.get_action(&state, &opponent_state);
+        let player_action = player.get_action(&state, player_state.get_hands());
+        let opponent_action = opponent.get_action(&state, opponent_state.get_hands());
 
         debug!("Player action: {}", player_action);
         debug!("Opponent action: {}", opponent_action);

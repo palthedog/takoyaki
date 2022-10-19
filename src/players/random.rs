@@ -7,7 +7,7 @@ use crate::engine::{
     board::Board,
     card::Card,
     game::{self, Action, PlayerId},
-    state::{PlayerState, State},
+    state::State,
 };
 
 use super::{utils, Player};
@@ -35,14 +35,9 @@ impl<'c> Player<'c> for RandomPlayer {
         self.rng.gen_bool(0.5)
     }
 
-    fn get_action<'a>(&mut self, state: &State, player_state: &PlayerState<'c>) -> Action<'c> {
+    fn get_action<'a>(&mut self, state: &State, hands: &[&'c Card]) -> Action<'c> {
         let mut actions_buffer: Vec<Action> = vec![];
-        utils::append_valid_actions(
-            state,
-            player_state.get_hands(),
-            self.player_id,
-            &mut actions_buffer,
-        );
+        utils::append_valid_actions(state, hands, self.player_id, &mut actions_buffer);
         debug!("Got {} valid actions", actions_buffer.len());
         let index = self.rng.gen_range(0..actions_buffer.len());
         actions_buffer.remove(index)
