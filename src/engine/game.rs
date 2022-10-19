@@ -52,10 +52,10 @@ pub enum PlayerType {
     Opponent,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Action<'a> {
-    Pass(&'a Card),
-    Put(&'a Card, CardPosition),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Action<'c> {
+    Pass(&'c Card),
+    Put(&'c Card, CardPosition),
 }
 
 impl<'a> Action<'a> {

@@ -26,16 +26,16 @@ impl RandomPlayer {
     }
 }
 
-impl Player for RandomPlayer {
+impl<'c> Player<'c> for RandomPlayer {
     fn init_game(&mut self, player_id: PlayerId, _board: &Board) {
         self.player_id = player_id;
     }
 
-    fn need_redeal_hands(&mut self, _dealed_cards: &[&Card]) -> bool {
+    fn need_redeal_hands(&mut self, _dealed_cards: &[&'c Card]) -> bool {
         self.rng.gen_bool(0.5)
     }
 
-    fn get_action<'a>(&mut self, state: &State, player_state: &'a PlayerState) -> Action<'a> {
+    fn get_action<'a>(&mut self, state: &State, player_state: &PlayerState<'c>) -> Action<'c> {
         let mut actions_buffer: Vec<Action> = vec![];
         utils::append_valid_actions(
             state,

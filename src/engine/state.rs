@@ -11,6 +11,7 @@ use more_asserts::*;
 use super::{
     board::{Board, BoardCell, BoardPosition},
     card::{Card, CardCell},
+    game,
 };
 use super::{
     card::CardPosition,
@@ -100,6 +101,10 @@ impl State {
             player_consumed_cards,
             opponent_consumed_cards,
         }
+    }
+
+    pub fn is_end(&self) -> bool {
+        self.turn == game::TURN_COUNT
     }
 }
 
