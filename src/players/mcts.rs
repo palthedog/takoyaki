@@ -353,6 +353,8 @@ impl<'c> Traverser<'c> {
             }
         });
 
+        debug!("# of legal actions: {}", legal_actions.len());
+
         assert_lt!(node.child_nodes.len(), legal_actions.len());
         // There are other legal actions which have never selected.
         // Select one of them first.
@@ -474,7 +476,6 @@ impl<'c> Traverser<'c> {
     fn filter_cards(cards: &mut Vec<&'c Card>, remove_card_ids: &[u32]) {
         let expected_len = cards.len() - remove_card_ids.len();
         remove_card_ids.iter().for_each(|r| {
-            let remove_id = r;
             for i in 0..cards.len() {
                 if cards[i].get_id() == *r {
                     cards.swap_remove(i);
@@ -524,7 +525,7 @@ mod tests {
 
     use crate::engine::{
         board,
-        state::{self, tests::new_test_card},
+        state::{self},
     };
 
     use super::*;
@@ -589,8 +590,13 @@ mod tests {
             enabled_step_execution: false,
         };
         const SEED: u64 = 42;
-        let player_initial_deck = context.all_cards.values().collect_vec();
-        let opponent_initial_deck = context.all_cards.values().collect_vec();
+        let sorted_cards = context
+            .all_cards
+            .values()
+            .sorted_by(|a, b| a.get_id().cmp(&b.get_id()))
+            .collect_vec();
+        let player_initial_deck = sorted_cards.clone();
+        let opponent_initial_deck = sorted_cards.clone();
 
         let (player_hands, player_deck) = player_initial_deck.split_at(game::HAND_SIZE);
         let (opponent_hands, opponent_deck) = opponent_initial_deck.split_at(game::HAND_SIZE);
@@ -626,7 +632,8 @@ mod tests {
         }
 
         // All child node should be expanded at this point.
-        traverser.select_leaf(&mut root_node, &determinization);
+        // So additional iteration doesn't add a child node to the root node.
+        traverser.iterate(&mut root_node, &determinization);
         assert_eq!(5, root_node.child_nodes.len());
     }
 }
