@@ -1,12 +1,10 @@
 use log::*;
-use rand::seq::SliceRandom;
 use rand::Rng;
 use rand_mt::Mt64;
 
 use crate::engine::{
-    board::Board,
     card::Card,
-    game::{self, Action, PlayerId},
+    game::{Action, Context, PlayerId},
     state::State,
 };
 
@@ -27,7 +25,7 @@ impl RandomPlayer {
 }
 
 impl<'c> Player<'c> for RandomPlayer {
-    fn init_game(&mut self, player_id: PlayerId, _board: &Board) {
+    fn init_game(&mut self, player_id: PlayerId, _context: &'c Context, _deck: Vec<&'c Card>) {
         self.player_id = player_id;
     }
 

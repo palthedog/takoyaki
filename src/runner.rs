@@ -38,7 +38,7 @@ pub fn deal_hands<'c>(
 }
 
 pub fn run<'a, 'c: 'a>(
-    context: &Context,
+    context: &'c Context,
     player_deck: &[&'c Card],
     opponent_deck: &[&'c Card],
     player: &'a mut impl Player<'c>,
@@ -48,11 +48,12 @@ pub fn run<'a, 'c: 'a>(
     assert_eq!(game::DECK_SIZE, player_deck.len());
     assert_eq!(game::DECK_SIZE, opponent_deck.len());
 
-    player.init_game(PlayerId::Player, &context.board);
-    opponent.init_game(PlayerId::Opponent, &context.board);
+    player.init_game(PlayerId::Player, &context, player_deck.to_vec());
+    opponent.init_game(PlayerId::Opponent, &context, opponent_deck.to_vec());
 
     let mut player_state = deal_hands(rng, player_deck, player);
     let mut opponent_state = deal_hands(rng, opponent_deck, opponent);
+
     debug!("Player states initialized");
     debug!("player: {}\nopponent: {}", player_state, opponent_state);
     let mut state = State::new(context.board.clone(), 0, 0, 0, vec![], vec![]);
@@ -61,6 +62,9 @@ pub fn run<'a, 'c: 'a>(
         let player_action = player.get_action(&state, player_state.get_hands());
         let opponent_action = opponent.get_action(&state, opponent_state.get_hands());
 
+        debug!("Original State: {}", state);
+        debug!("Player state: {}", player_state);
+        debug!("Opponent state: {}", opponent_state);
         debug!("Player action: {}", player_action);
         debug!("Opponent action: {}", opponent_action);
         if context.enabled_step_execution {

@@ -14,7 +14,7 @@ use takoyaki::{
         card::{self, Card},
         game::{self, Context},
     },
-    players::random::RandomPlayer,
+    players::{mcts::MctsPlayer, random::RandomPlayer},
     runner,
     train::{self, deck::TrainDeckArgs},
 };
@@ -81,8 +81,10 @@ fn run_rand(
     // Use fixed seed for reproducible results.
     let mut rng = Mt64::new(0x42);
 
-    let mut player = RandomPlayer::new(rng.next_u64());
+    //let mut player = RandomPlayer::new(rng.next_u64());
+    let mut player = MctsPlayer::new(rng.next_u64());
     let mut opponent = RandomPlayer::new(rng.next_u64());
+    //let mut opponent = MctsPlayer::new(rng.next_u64());
 
     let mut player_inventory_cards: Vec<&Card> = match player_deck_path {
         Some(path) => card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(path)),
@@ -123,18 +125,19 @@ fn run_rand(
                 player_won_cnt += 1;
             }
         }
-        if n % 100 == 0 || context.enabled_step_execution {
-            println!("Battle #{}", n);
+        info!("Battle #{}. {} v.s. {} ", n, p, o);
+        if n % 1 == 0 || context.enabled_step_execution {
+            info!("Battle #{}", n);
             print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
         }
     }
 
-    println!("\n* All battles have finished");
-    println!(
+    info!("\n* All battles have finished");
+    info!(
         "Used decks: p: {:?}, o: {:?}",
         player_deck_path, opponent_deck_path
     );
-    println!("Board: {}", &context.board.get_name());
+    info!("Board: {}", &context.board.get_name());
     print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
 }
 
@@ -142,13 +145,16 @@ fn print_rate(p_cnt: usize, o_cnt: usize, draw_cnt: usize) {
     let total: f32 = (p_cnt + o_cnt + draw_cnt) as f32;
     let player_won_ratio: f32 = p_cnt as f32 / total;
     let opponent_won_ratio: f32 = o_cnt as f32 / total;
-    println!("Player won cnt: {} ({})", p_cnt, player_won_ratio);
-    println!("Opponent won cnt: {} ({})", o_cnt, opponent_won_ratio);
-    println!("Draw cnt: {}", draw_cnt);
+    info!("Player won cnt: {} ({:.3})", p_cnt, player_won_ratio);
+    info!("Opponent won cnt: {} ({:.3})", o_cnt, opponent_won_ratio);
+    info!("Draw cnt: {}", draw_cnt);
 }
 
 fn main() {
-    env_logger::init();
+    // Initialize env_logger with a default log level of INFO.
+    env_logger::init_from_env(
+        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
+    );
 
     let args = Cli::parse();
 

@@ -28,6 +28,22 @@ pub enum PlayerId {
     Opponent,
 }
 
+impl PlayerId {
+    pub fn another(&self) -> PlayerId {
+        match self {
+            PlayerId::Player => PlayerId::Opponent,
+            PlayerId::Opponent => PlayerId::Player,
+        }
+    }
+
+    pub fn to_index(self) -> usize {
+        match self {
+            PlayerId::Player => 0,
+            PlayerId::Opponent => 1,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Rotation {
     Up,

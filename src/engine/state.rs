@@ -84,8 +84,8 @@ pub struct State {
     pub player_special_count: i32,
     pub opponent_special_count: i32,
 
-    pub player_consumed_cards: Vec<u32>,
-    pub opponent_consumed_cards: Vec<u32>,
+    player_consumed_cards: Vec<u32>,
+    opponent_consumed_cards: Vec<u32>,
 }
 
 impl State {
@@ -110,6 +110,13 @@ impl State {
     pub fn is_end(&self) -> bool {
         self.turn == game::TURN_COUNT
     }
+
+    pub fn get_consumed_cards(&self, player_id: PlayerId) -> &[u32] {
+        match player_id {
+            PlayerId::Player => &self.player_consumed_cards,
+            PlayerId::Opponent => &self.opponent_consumed_cards,
+        }
+    }
 }
 
 impl Display for State {
@@ -133,10 +140,18 @@ pub fn update_player_state(player_state: &mut PlayerCardState, action: &Action) 
 
 pub fn update_state(state: &mut State, player_action: &Action, opponent_action: &Action) {
     if !is_valid_action(state, PlayerId::Player, player_action) {
-        todo!("Player should lose");
+        todo!(
+            "Invalid action. Player should lose/nstate: {}/naction: {}",
+            state,
+            player_action
+        );
     }
     if !is_valid_action(state, PlayerId::Opponent, opponent_action) {
-        todo!("Opponent should lose");
+        todo!(
+            "Opponent should lose/nstate: {}/naction: {}",
+            state,
+            opponent_action
+        );
     }
 
     // Activated special ink count
