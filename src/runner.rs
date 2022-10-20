@@ -1,13 +1,13 @@
 use std::io::stdin;
 
 use log::*;
-use rand::{seq::SliceRandom, Rng};
+use rand::seq::SliceRandom;
 use rand_mt::Mt64;
 
 use crate::{
     engine::{
         card::Card,
-        game::{self, Action, Context, PlayerId},
+        game::{self, Context, PlayerId},
         state::{self, PlayerCardState, State},
     },
     players::*,
@@ -49,8 +49,8 @@ pub fn run<'c>(
     assert_eq!(game::DECK_SIZE, player_deck.len());
     assert_eq!(game::DECK_SIZE, opponent_deck.len());
 
-    player.init_game(PlayerId::Player, &context, player_deck.to_vec());
-    opponent.init_game(PlayerId::Opponent, &context, opponent_deck.to_vec());
+    player.init_game(PlayerId::Player, context, player_deck.to_vec());
+    opponent.init_game(PlayerId::Opponent, context, opponent_deck.to_vec());
 
     let mut player_state = deal_hands(rng, player_deck, player);
     let mut opponent_state = deal_hands(rng, opponent_deck, opponent);

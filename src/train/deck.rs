@@ -1,5 +1,4 @@
 use std::{
-    borrow::BorrowMut,
     collections::{HashMap, HashSet},
     fmt::Display,
     path::PathBuf,
@@ -17,7 +16,7 @@ use crate::{
         card::{self, Card},
         game::{self, Context},
     },
-    players::{random::RandomPlayer, Player, PlayerType},
+    players::Player,
     runner,
 };
 
@@ -130,7 +129,7 @@ impl<'c> TrainDeck<'c> {
         let mut opponent_won_cnt = 0;
         let mut draw_cnt = 0;
 
-        for i in 0..battle_count {
+        for _i in 0..battle_count {
             let (p, o) = runner::run(
                 self.context,
                 player_deck,

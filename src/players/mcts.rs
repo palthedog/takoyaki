@@ -1,3 +1,4 @@
+use __core::cmp::Ordering;
 use itertools::Itertools;
 use log::{debug, Level};
 use more_asserts::*;
@@ -7,7 +8,6 @@ use rand::Rng;
 use rand_mt::Mt64;
 
 use crate::engine::{
-    board::Board,
     card::Card,
     game::{self, Action, Context, PlayerId},
     state::{self, PlayerCardState, State},
@@ -28,7 +28,7 @@ pub struct MctsPlayer<'c> {
 
 impl<'c> MctsPlayer<'c> {
     pub fn new(seed: u64, iterations: usize) -> Self {
-        let mut rng = Mt64::new(seed);
+        let rng = Mt64::new(seed);
         MctsPlayer {
             iterations,
             player_id: PlayerId::Player,
@@ -41,7 +41,7 @@ impl<'c> MctsPlayer<'c> {
 impl<'c> Player<'c> for MctsPlayer<'c> {
     fn init_game(&mut self, player_id: PlayerId, context: &'c Context, deck: Vec<&'c Card>) {
         self.player_id = player_id;
-        self.traverser.insert(Traverser::new(
+        self.traverser = Some(Traverser::new(
             context,
             player_id,
             deck,
@@ -61,7 +61,7 @@ impl<'c> Player<'c> for MctsPlayer<'c> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
 struct Statistic {
     total_cnt: i32,
     win_cnt: i32,
@@ -70,29 +70,16 @@ struct Statistic {
     value: i32,
 }
 
-impl Default for Statistic {
-    fn default() -> Self {
-        Self {
-            total_cnt: 0,
-            win_cnt: 0,
-            lose_cnt: 0,
-            draw_cnt: 0,
-            value: 0,
-        }
-    }
-}
-
 impl Statistic {
     fn update_with(&mut self, (p, o): (i32, i32)) {
         self.total_cnt += 1;
-        if p == o {
-            self.draw_cnt += 1
-        } else if p > o {
-            self.win_cnt += 1
-        } else {
-            self.lose_cnt += 1
-        }
         self.value += p - o;
+
+        match o.cmp(&p) {
+            Ordering::Equal => self.draw_cnt += 1,
+            Ordering::Less => self.lose_cnt += 1,
+            Ordering::Greater => self.win_cnt += 1,
+        }
     }
 
     fn get_expected_value(&self) -> f64 {
@@ -104,9 +91,11 @@ impl Statistic {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ChanceAction<'c> {
     DealInitialHand(PlayerId, [&'c Card; game::HAND_SIZE]),
+
     DealCard(PlayerId, &'c Card),
 }
 
@@ -295,7 +284,7 @@ impl<'c> Traverser<'c> {
         iterations: usize,
     ) -> Action<'c> {
         let mut root_node = self.create_root_node(state);
-        for n in 0..iterations {
+        for _n in 0..iterations {
             let determinization = if self.player_id == PlayerId::Player {
                 Determinization::new(
                     self.determinize_my_deck(&root_node.state, hands),
@@ -334,7 +323,7 @@ impl<'c> Traverser<'c> {
             .action
         {
             assert_eq!(self.player_id, player_id);
-            return action;
+            action
         } else {
             panic!(
                 "The root node has an invalid action for the player: {:#?}",
@@ -346,12 +335,12 @@ impl<'c> Traverser<'c> {
     fn iterate(&mut self, root_node: &mut Node<'c>, determinization: &Determinization<'c>) {
         // Selection
         debug!("Selection");
-        let (mut leaf, mut history) = self.select_leaf(root_node, determinization);
+        let (leaf, mut history) = self.select_leaf(root_node, determinization);
 
         // Expansion
         debug!("Expansion");
         let leaf = if !leaf.is_terminal() {
-            let tmp = self.expand(&mut leaf, determinization);
+            let tmp = self.expand(leaf, determinization);
             history.push(tmp.action.clone());
             tmp
         } else {
@@ -370,11 +359,11 @@ impl<'c> Traverser<'c> {
         debug!("Backpropagation");
         let mut node = root_node;
         node.statistic.update_with(result);
-        for i in 0..history.len() {
+        for visited_node in history {
             node = node
                 .child_nodes
                 .iter_mut()
-                .find(|c| c.action == history[i])
+                .find(|c| c.action == visited_node)
                 .unwrap();
             node.statistic.update_with(result);
         }
@@ -420,13 +409,13 @@ impl<'c> Traverser<'c> {
             if !node.simultaneous_state.action_is_filled(self.player_id) {
                 self.precalculate_valid_actions(
                     &node.state,
-                    &determinization.get_cards(self.player_id),
+                    determinization.get_cards(self.player_id),
                     self.player_id,
                 )
             } else {
                 self.precalculate_valid_actions(
                     &node.state,
-                    &determinization.get_cards(self.player_id.another()),
+                    determinization.get_cards(self.player_id.another()),
                     self.player_id.another(),
                 )
             }
@@ -494,8 +483,7 @@ impl<'c> Traverser<'c> {
         let n_sum: i32 = filtered_nodes.iter().map(|n| n.statistic.total_cnt).sum();
 
         let log_n_sum = (n_sum as f64).ln();
-        for i in 0..filtered_nodes.len() {
-            let child = &filtered_nodes[i];
+        for (i, child) in filtered_nodes.iter().enumerate() {
             assert_gt!(child.statistic.total_cnt, 0);
 
             let ucb1 = Self::calc_ucb1(log_n_sum, child);
@@ -571,7 +559,7 @@ impl<'c> Traverser<'c> {
         let mut all_cards = self.context.all_cards.values().collect_vec();
         Self::filter_cards(
             &mut all_cards,
-            &state.get_consumed_cards(self.player_id.another()),
+            state.get_consumed_cards(self.player_id.another()),
         );
 
         all_cards.shuffle(&mut self.rng);
@@ -586,7 +574,7 @@ impl<'c> Traverser<'c> {
         let hand_ids: Vec<u32> = hands.iter().map(|c| c.get_id()).collect();
         Self::filter_cards(&mut deck_cards, &hand_ids);
 
-        Self::filter_cards(&mut deck_cards, &state.get_consumed_cards(self.player_id));
+        Self::filter_cards(&mut deck_cards, state.get_consumed_cards(self.player_id));
 
         // Shuffle cards in deck since the player don't know the order of deck.
         deck_cards.shuffle(&mut self.rng);
@@ -594,7 +582,7 @@ impl<'c> Traverser<'c> {
     }
 
     /// Creates a node from an actual game state (visible from the player).
-    fn create_root_node<'a>(&mut self, state: &State) -> Node<'c> {
+    fn create_root_node(&mut self, state: &State) -> Node<'c> {
         Node::new(state.clone(), SimultaneousState::new(), NodeAction::Root)
     }
 }
@@ -603,10 +591,7 @@ impl<'c> Traverser<'c> {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::engine::{
-        board,
-        state::{self},
-    };
+    use crate::engine::{board, state};
 
     use super::*;
 

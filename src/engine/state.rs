@@ -1,9 +1,4 @@
-use std::{
-    cmp::Ordering,
-    collections::HashMap,
-    fmt::Display,
-    hash::{Hash, Hasher},
-};
+use std::{cmp::Ordering, collections::HashMap, fmt::Display, hash::Hash};
 
 use log::*;
 use more_asserts::*;
@@ -26,10 +21,7 @@ pub struct PlayerCardState<'c> {
 
 impl<'a> PlayerCardState<'a> {
     pub fn new(hands: Vec<&'a Card>, deck: Vec<&'a Card>) -> PlayerCardState<'a> {
-        PlayerCardState {
-            hands: hands,
-            deck: deck,
-        }
+        PlayerCardState { hands, deck }
     }
 
     pub fn get_hands(&self) -> &[&'a Card] {

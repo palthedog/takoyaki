@@ -10,7 +10,7 @@ use rand_mt::Mt64;
 use takoyaki::{
     engine::{board, card, game::Context},
     play::{self, PlayArgs},
-    players::{mcts::MctsPlayer, random::RandomPlayer, Player, PlayerType},
+    players::PlayerType,
     train::{self, deck::TrainDeckArgs},
 };
 
