@@ -62,12 +62,6 @@ impl Display for Rotation {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum PlayerType {
-    Player,
-    Opponent,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action<'c> {
     Pass(&'c Card),

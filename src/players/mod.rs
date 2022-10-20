@@ -15,5 +15,45 @@ pub trait Player<'c> {
     /// It will be called once before the first action.
     fn need_redeal_hands(&mut self, dealed_cards: &[&'c Card]) -> bool;
 
-    fn get_action<'a>(&mut self, state: &State, hands: &[&'c Card]) -> Action<'c>;
+    fn get_action(&mut self, state: &State, hands: &[&'c Card]) -> Action<'c>;
+}
+
+#[derive(Clone, Debug)]
+pub enum PlayerType {
+    // Manual
+    Random,
+    Mcts { iterations: usize },
+}
+
+const PLAYER_TYPE_VARIANTS: [PlayerType; 4] = [
+    PlayerType::Random,
+    PlayerType::Mcts { iterations: 10 },
+    PlayerType::Mcts { iterations: 100 },
+    PlayerType::Mcts { iterations: 1000 },
+];
+
+impl clap::ArgEnum for PlayerType {
+    fn value_variants<'a>() -> &'a [Self] {
+        &PLAYER_TYPE_VARIANTS
+    }
+
+    fn to_possible_value<'a>(&self) -> Option<clap::PossibleValue<'a>> {
+        let name = match self {
+            PlayerType::Random => "random",
+            PlayerType::Mcts { iterations: 10 } => "mcts-10",
+            PlayerType::Mcts { iterations: 100 } => "mcts-100",
+            PlayerType::Mcts { iterations: 1000 } => "mcts-1000",
+            _ => panic!(),
+        };
+        Some(clap::PossibleValue::new(name))
+    }
+}
+
+impl PlayerType {
+    pub fn create_player<'c>(&self, _context: &'c Context, seed: u64) -> Box<dyn Player<'c> + 'c> {
+        match self {
+            PlayerType::Random => Box::new(random::RandomPlayer::new(seed)),
+            PlayerType::Mcts { iterations } => Box::new(mcts::MctsPlayer::new(seed, *iterations)),
+        }
+    }
 }

@@ -19,15 +19,18 @@ use super::{
 };
 
 pub struct MctsPlayer<'c> {
+    iterations: usize,
+
     player_id: PlayerId,
     traverser: Option<Traverser<'c>>,
     rng: Mt64,
 }
 
 impl<'c> MctsPlayer<'c> {
-    pub fn new(seed: u64) -> Self {
+    pub fn new(seed: u64, iterations: usize) -> Self {
         let mut rng = Mt64::new(seed);
         MctsPlayer {
+            iterations,
             player_id: PlayerId::Player,
             traverser: None,
             rng,
@@ -50,11 +53,11 @@ impl<'c> Player<'c> for MctsPlayer<'c> {
         self.rng.gen_bool(0.5)
     }
 
-    fn get_action<'a>(&mut self, state: &State, hands: &[&'c Card]) -> Action<'c> {
+    fn get_action(&mut self, state: &State, hands: &[&'c Card]) -> Action<'c> {
         self.traverser
             .as_mut()
             .unwrap()
-            .search_action(state, hands, 1000)
+            .search_action(state, hands, self.iterations)
     }
 }
 

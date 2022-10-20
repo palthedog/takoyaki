@@ -1,4 +1,5 @@
 use std::{
+    borrow::BorrowMut,
     collections::{HashMap, HashSet},
     fmt::Display,
     path::PathBuf,
@@ -16,7 +17,7 @@ use crate::{
         card::{self, Card},
         game::{self, Context},
     },
-    players::random::RandomPlayer,
+    players::{random::RandomPlayer, Player, PlayerType},
     runner,
 };
 
@@ -101,45 +102,41 @@ struct TrainDeck<'a> {
     context: &'a Context,
     args: TrainDeckArgs,
     inventory_cards: HashMap<u32, &'a Card>,
-    player: RandomPlayer,
-    opponent: RandomPlayer,
 }
 
-impl<'a> TrainDeck<'a> {
+impl<'c> TrainDeck<'c> {
     fn new(
-        context: &'a Context,
+        context: &'c Context,
         args: TrainDeckArgs,
-        inventory_cards: HashMap<u32, &'a Card>,
-    ) -> TrainDeck<'a> {
-        let mut rng = Mt64::new(42);
-        let p_seed = rng.next_u64();
-        let o_seed = rng.next_u64();
+        inventory_cards: HashMap<u32, &'c Card>,
+    ) -> TrainDeck<'c> {
         TrainDeck {
-            rng,
+            rng: Mt64::new(42),
             context,
             args,
             inventory_cards,
-            player: RandomPlayer::new(p_seed),
-            opponent: RandomPlayer::new(o_seed),
         }
     }
 
     fn run_battles(
         &mut self,
         battle_count: usize,
-        player_deck: &[&'a Card],
-        opponent_deck: &[&'a Card],
+        player_deck: &[&'c Card],
+        opponent_deck: &[&'c Card],
+        player: &mut dyn Player<'c>,
+        opponent: &mut dyn Player<'c>,
     ) -> (u32, u32, u32) {
         let mut player_won_cnt = 0;
         let mut opponent_won_cnt = 0;
         let mut draw_cnt = 0;
-        (0..battle_count).for_each(|_| {
+
+        for i in 0..battle_count {
             let (p, o) = runner::run(
                 self.context,
                 player_deck,
                 opponent_deck,
-                &mut self.player,
-                &mut self.opponent,
+                player,
+                opponent,
                 &mut self.rng,
             );
             match p.cmp(&o) {
@@ -156,22 +153,29 @@ impl<'a> TrainDeck<'a> {
                     player_won_cnt += 1;
                 }
             }
-        });
+        }
         (player_won_cnt, opponent_won_cnt, draw_cnt)
     }
 
     fn evaluate_population<'b>(
         &mut self,
-        population: &'b [Vec<&'a Card>],
-        opponent_deck: &'b [&'a Card],
-    ) -> Vec<Report<'a, 'b>> {
+        population: &'b [Vec<&'c Card>],
+        opponent_deck: &'b [&'c Card],
+        player: &mut dyn Player<'c>,
+        opponent: &mut dyn Player<'c>,
+    ) -> Vec<Report<'c, 'b>> {
         // key: variation_index
         // value: won count
         let mut won_cnts: HashMap<usize, u32> = HashMap::new();
         (0..population.len()).for_each(|p_deck_index| {
             let player_deck = &population[p_deck_index];
-            let (win, _lose, _draw) =
-                self.run_battles(self.args.battles_per_epoch, player_deck, opponent_deck);
+            let (win, _lose, _draw) = self.run_battles(
+                self.args.battles_per_epoch,
+                player_deck,
+                opponent_deck,
+                player,
+                opponent,
+            );
             *won_cnts.entry(p_deck_index).or_insert(0) += win;
         });
         won_cnts
@@ -183,7 +187,7 @@ impl<'a> TrainDeck<'a> {
             .collect()
     }
 
-    fn create_initial_population(&mut self) -> Vec<Vec<&'a Card>> {
+    fn create_initial_population(&mut self) -> Vec<Vec<&'c Card>> {
         let mut population: Vec<Vec<&Card>> = vec![];
         for _ in 0..self.args.population_size {
             let mut deck: Vec<&Card> = self
@@ -197,7 +201,7 @@ impl<'a> TrainDeck<'a> {
         population
     }
 
-    fn crossover<'b>(&mut self, a: &Report<'a, 'b>, b: &Report<'a, 'b>) -> Vec<&'a Card> {
+    fn crossover<'b>(&mut self, a: &Report<'c, 'b>, b: &Report<'c, 'b>) -> Vec<&'c Card> {
         // key: card id
         // value: weight
         let mut card_weights: HashMap<u32, u32> = HashMap::new();
@@ -228,7 +232,7 @@ impl<'a> TrainDeck<'a> {
         new_deck
     }
 
-    fn mutation(&mut self, deck: &mut [&'a Card]) {
+    fn mutation(&mut self, deck: &mut [&'c Card]) {
         let mut pool: HashSet<u32> = HashSet::new();
         self.inventory_cards.keys().for_each(|card_id| {
             pool.insert(*card_id);
@@ -261,7 +265,7 @@ impl<'a> TrainDeck<'a> {
         }
     }
 
-    fn create_next_generation<'b>(&mut self, reports: &mut [Report<'a, 'b>]) -> Vec<Vec<&'a Card>> {
+    fn create_next_generation<'b>(&mut self, reports: &mut [Report<'c, 'b>]) -> Vec<Vec<&'c Card>> {
         assert_eq!(self.args.population_size, reports.len());
 
         reports.sort_by(|a, b| b.win_cnt.cmp(&a.win_cnt));
@@ -272,7 +276,7 @@ impl<'a> TrainDeck<'a> {
             });
         }
 
-        let mut next_gen: Vec<Vec<&'a Card>> = vec![];
+        let mut next_gen: Vec<Vec<&'c Card>> = vec![];
 
         // Choose top elites as is.
         (0..self.args.elite_count).for_each(|i| {
@@ -315,7 +319,7 @@ impl<'a> TrainDeck<'a> {
         next_gen
     }
 
-    fn run(&mut self) {
+    fn run(&mut self, player: &mut dyn Player<'c>, opponent: &mut dyn Player<'c>) {
         assert_le!(
             self.args.elite_count,
             self.args.population_size,
@@ -363,7 +367,8 @@ impl<'a> TrainDeck<'a> {
             };
 
             info!("Running  {} battles...", battles_count);
-            let mut reports = self.evaluate_population(&population, evaluation_deck);
+            let mut reports =
+                self.evaluate_population(&population, evaluation_deck, player, opponent);
 
             // Validation
             info!("Validating...");
@@ -372,7 +377,7 @@ impl<'a> TrainDeck<'a> {
                 .max_by(|a, b| a.win_cnt.cmp(&b.win_cnt))
                 .unwrap()
                 .deck;
-            let (w, l, d) = self.run_battles(1000, best_deck, &validation_deck);
+            let (w, l, d) = self.run_battles(1000, best_deck, &validation_deck, player, opponent);
             info!("Validation: Win rate: {:.3}", w as f64 / (w + l + d) as f64);
             info!("Board: {}", self.context.board.get_name());
 
@@ -382,8 +387,13 @@ impl<'a> TrainDeck<'a> {
     }
 }
 
-pub fn train_deck(context: &Context, args: TrainDeckArgs) {
+pub fn train_deck<'p, 'c: 'p>(
+    context: &'c Context,
+    player: &mut dyn Player<'c>,
+    opponent: &mut dyn Player<'c>,
+    args: TrainDeckArgs,
+) {
     let inventory_cards =
         card::card_ids_to_card_map(&context.all_cards, &card::load_deck(&args.inventory_path));
-    TrainDeck::new(context, args, inventory_cards).run();
+    TrainDeck::new(context, args, inventory_cards).run(player, opponent);
 }

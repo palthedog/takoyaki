@@ -2,6 +2,7 @@ use std::io::stdin;
 
 use log::*;
 use rand::{seq::SliceRandom, Rng};
+use rand_mt::Mt64;
 
 use crate::{
     engine::{
@@ -13,9 +14,9 @@ use crate::{
 };
 
 pub fn deal_hands<'c>(
-    rng: &mut impl Rng,
+    rng: &mut Mt64,
     deck: &[&'c Card],
-    player: &mut impl Player<'c>,
+    player: &mut dyn Player<'c>,
 ) -> PlayerCardState<'c> {
     let mut deck = deck.to_vec();
     debug!(
@@ -37,13 +38,13 @@ pub fn deal_hands<'c>(
     )
 }
 
-pub fn run<'a, 'c: 'a>(
+pub fn run<'c>(
     context: &'c Context,
     player_deck: &[&'c Card],
     opponent_deck: &[&'c Card],
-    player: &'a mut impl Player<'c>,
-    opponent: &'a mut impl Player<'c>,
-    rng: &mut impl Rng,
+    player: &mut dyn Player<'c>,
+    opponent: &mut dyn Player<'c>,
+    rng: &mut Mt64,
 ) -> (i32, i32) {
     assert_eq!(game::DECK_SIZE, player_deck.len());
     assert_eq!(game::DECK_SIZE, opponent_deck.len());

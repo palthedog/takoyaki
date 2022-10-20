@@ -3,24 +3,19 @@ extern crate log;
 
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand, ValueHint};
+use clap::{self, Parser, Subcommand};
 use log::*;
-use rand::seq::SliceRandom;
-use rand_mt::Mt64;
 
+use rand_mt::Mt64;
 use takoyaki::{
-    engine::{
-        board,
-        card::{self, Card},
-        game::{self, Context},
-    },
-    players::{mcts::MctsPlayer, random::RandomPlayer},
-    runner,
+    engine::{board, card, game::Context},
+    play::{self, PlayArgs},
+    players::{mcts::MctsPlayer, random::RandomPlayer, Player, PlayerType},
     train::{self, deck::TrainDeckArgs},
 };
 
 #[derive(Parser)]
-struct Cli {
+pub struct AppArgs {
     /// a directory path where holds all card data. no need to specify for many cases.
     #[clap(long, value_parser, default_value_t = String::from("data/cards"))]
     card_dir: String,
@@ -37,6 +32,12 @@ struct Cli {
     #[clap(long, short, value_parser, default_value_t = false)]
     step_execution: bool,
 
+    #[clap(long, value_parser, default_value = "random")]
+    player: PlayerType,
+
+    #[clap(long, value_parser, default_value = "random")]
+    opponent: PlayerType,
+
     // sub commands
     #[clap(subcommand)]
     command: Commands,
@@ -44,110 +45,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// play games with random hands/decks.
+    /// play games
     #[clap(arg_required_else_help = true)]
-    Rand {
-        #[clap(long, short = 'c', value_parser, default_value_t = 1)]
-        play_cnt: u32,
+    Play(PlayArgs),
 
-        /// List of cards which the player can choose for their deck
-        #[clap(
-            short,
-            long,
-            value_parser,
-            value_hint=ValueHint::FilePath,
-        )]
-        player_deck_path: Option<PathBuf>,
-
-        /// List of cards which the opponnt can choose for their deck
-        #[clap(
-            short,
-            long,
-            value_parser,
-            value_hint=ValueHint::FilePath,
-        )]
-        opponent_deck_path: Option<PathBuf>,
-    },
-
+    /// Find stronger deck
+    #[clap(arg_required_else_help = true)]
     TrainDeck(TrainDeckArgs),
-}
-
-fn run_rand(
-    context: &Context,
-    play_cnt: u32,
-    player_deck_path: &Option<PathBuf>,
-    opponent_deck_path: &Option<PathBuf>,
-) {
-    // Use fixed seed for reproducible results.
-    let mut rng = Mt64::new(0x42);
-
-    //let mut player = RandomPlayer::new(rng.next_u64());
-    let mut player = MctsPlayer::new(rng.next_u64());
-    let mut opponent = RandomPlayer::new(rng.next_u64());
-    //let mut opponent = MctsPlayer::new(rng.next_u64());
-
-    let mut player_inventory_cards: Vec<&Card> = match player_deck_path {
-        Some(path) => card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(path)),
-        None => context.all_cards.values().collect(),
-    };
-    let mut opponent_inventory_cards: Vec<&Card> = match opponent_deck_path {
-        Some(path) => card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(path)),
-        None => context.all_cards.values().collect(),
-    };
-
-    let mut player_won_cnt = 0;
-    let mut opponent_won_cnt = 0;
-    let mut draw_cnt = 0;
-    for n in 0..play_cnt {
-        let (player_deck, _) = player_inventory_cards.partial_shuffle(&mut rng, game::DECK_SIZE);
-        let (opponent_deck, _) =
-            opponent_inventory_cards.partial_shuffle(&mut rng, game::DECK_SIZE);
-
-        let (p, o) = runner::run(
-            context,
-            &player_deck,
-            &opponent_deck,
-            &mut player,
-            &mut opponent,
-            &mut rng,
-        );
-        match p.cmp(&o) {
-            std::cmp::Ordering::Less => {
-                debug!("Opponent win!");
-                opponent_won_cnt += 1;
-            }
-            std::cmp::Ordering::Equal => {
-                debug!("Draw");
-                draw_cnt += 1;
-            }
-            std::cmp::Ordering::Greater => {
-                debug!("Player win!");
-                player_won_cnt += 1;
-            }
-        }
-        info!("Battle #{}. {} v.s. {} ", n, p, o);
-        if n % 1 == 0 || context.enabled_step_execution {
-            info!("Battle #{}", n);
-            print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
-        }
-    }
-
-    info!("\n* All battles have finished");
-    info!(
-        "Used decks: p: {:?}, o: {:?}",
-        player_deck_path, opponent_deck_path
-    );
-    info!("Board: {}", &context.board.get_name());
-    print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
-}
-
-fn print_rate(p_cnt: usize, o_cnt: usize, draw_cnt: usize) {
-    let total: f32 = (p_cnt + o_cnt + draw_cnt) as f32;
-    let player_won_ratio: f32 = p_cnt as f32 / total;
-    let opponent_won_ratio: f32 = o_cnt as f32 / total;
-    info!("Player won cnt: {} ({:.3})", p_cnt, player_won_ratio);
-    info!("Opponent won cnt: {} ({:.3})", o_cnt, opponent_won_ratio);
-    info!("Draw cnt: {}", draw_cnt);
 }
 
 fn main() {
@@ -156,7 +60,7 @@ fn main() {
         env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
     );
 
-    let args = Cli::parse();
+    let args = AppArgs::parse();
 
     let all_cards = card::load_cards(&args.card_dir);
     if log_enabled!(Level::Debug) {
@@ -170,14 +74,16 @@ fn main() {
         enabled_step_execution: args.step_execution,
     };
 
+    // Use fixed seed for reproducible results.
+    let mut rng = Mt64::new(0x42);
+
+    let mut player = args.player.create_player(&context, rng.next_u64());
+    let mut opponent = args.opponent.create_player(&context, rng.next_u64());
+
     match args.command {
-        Commands::Rand {
-            play_cnt,
-            player_deck_path,
-            opponent_deck_path,
-        } => {
-            run_rand(&context, play_cnt, &player_deck_path, &opponent_deck_path);
+        Commands::Play(p_args) => play::run_rand(&context, &mut *player, &mut *opponent, p_args),
+        Commands::TrainDeck(t_args) => {
+            train::deck::train_deck(&context, &mut *player, &mut *opponent, t_args)
         }
-        Commands::TrainDeck(args) => train::deck::train_deck(&context, args),
     }
 }
