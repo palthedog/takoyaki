@@ -1,4 +1,3 @@
-use __core::cmp::Ordering;
 use itertools::Itertools;
 use log::{debug, Level};
 use more_asserts::*;
@@ -6,6 +5,7 @@ use once_cell::sync::OnceCell;
 use rand::seq::SliceRandom;
 use rand::Rng;
 use rand_mt::Mt64;
+use std::cmp::Ordering;
 
 use crate::engine::{
     card::Card,
@@ -74,8 +74,7 @@ impl Statistic {
     fn update_with(&mut self, (p, o): (i32, i32)) {
         self.total_cnt += 1;
         self.value += p - o;
-
-        match o.cmp(&p) {
+        match p.cmp(&o) {
             Ordering::Equal => self.draw_cnt += 1,
             Ordering::Less => self.lose_cnt += 1,
             Ordering::Greater => self.win_cnt += 1,

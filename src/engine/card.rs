@@ -298,7 +298,7 @@ pub fn load_card_from_lines(
     Card {
         id,
         name,
-        cell_count: cell_count as i32,
+        cell_count,
         special_cost,
         cells: cells_variations,
     }

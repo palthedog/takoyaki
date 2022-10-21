@@ -171,7 +171,7 @@ impl Board {
         let x = position.x;
         let y = position.y;
         assert!(
-            y >= 0 || x >= 0 || y < self.height as i32 || x < self.width as i32,
+            y >= 0 || x >= 0 || y < self.height || x < self.width,
             "Cannot update a cell at out side of the board"
         );
         self.cells[y as usize][x as usize] = cell;
