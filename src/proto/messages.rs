@@ -1,0 +1,80 @@
+use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum TakoyakiRequest {
+    // The first message sent from the client.
+    // It must be serialized as JSON format.
+    Manmenmi(ManmenmiRequest),
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum TakoyakiResponse {
+    // Only this response can be returned from the server for any type of request.
+    Error(ErrorResponse),
+
+    Manmenmi(ManmenmiResponse),
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum Format {
+    Json,
+    FlexBuffer,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct ManmenmiRequest {
+    preferred_format: Format,
+    name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct ManmenmiResponse {
+    board_id: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct ErrorResponse {
+    code: ErrorCode,
+    message: String,
+}
+
+#[derive(Serialize_repr, Deserialize_repr, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ErrorCode {
+    /// You can't retry.
+    Critical = 0,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serialize_deserialize() {
+        let message = TakoyakiRequest::Manmenmi(ManmenmiRequest {
+            preferred_format: Format::Json,
+            name: String::from("Ika"),
+        });
+        let serialized = serde_json::to_string(&message).unwrap();
+        assert_eq!(
+            r#"{"Manmenmi":{"preferred_format":"Json","name":"Ika"}}"#,
+            serialized
+        );
+        let deserialized: TakoyakiRequest = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(message, deserialized);
+    }
+
+    #[test]
+    fn test_serialize_enum() {
+        let message = TakoyakiResponse::Error(ErrorResponse {
+            code: ErrorCode::Critical,
+            message: "Critical error...".to_string(),
+        });
+        let serialized = serde_json::to_string(&message).unwrap();
+        assert_eq!(
+            r#"{"Error":{"code":0,"message":"Critical error..."}}"#,
+            serialized
+        );
+    }
+}
