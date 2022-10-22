@@ -26,7 +26,7 @@ pub struct PlayArgs {
         value_parser,
         value_hint=ValueHint::FilePath,
     )]
-    player_deck_path: Option<PathBuf>,
+    player_deck_path: PathBuf,
 
     /// List of cards which the opponnt can choose for their deck
     #[clap(
@@ -35,7 +35,7 @@ pub struct PlayArgs {
         value_parser,
         value_hint=ValueHint::FilePath,
     )]
-    opponent_deck_path: Option<PathBuf>,
+    opponent_deck_path: PathBuf,
 }
 
 pub fn run_rand<'c>(
@@ -45,20 +45,16 @@ pub fn run_rand<'c>(
     args: PlayArgs,
 ) {
     let play_cnt: u32 = args.play_cnt;
-    let player_deck_path: Option<PathBuf> = args.player_deck_path;
-    let opponent_deck_path: Option<PathBuf> = args.opponent_deck_path;
+    let player_deck_path: PathBuf = args.player_deck_path;
+    let opponent_deck_path: PathBuf = args.opponent_deck_path;
 
     // Use fixed seed for reproducible results.
     let mut rng = Mt64::new(0x42);
 
-    let mut player_inventory_cards: Vec<&Card> = match &player_deck_path {
-        Some(path) => card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(path)),
-        None => context.all_cards.values().collect(),
-    };
-    let mut opponent_inventory_cards: Vec<&Card> = match &opponent_deck_path {
-        Some(path) => card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(path)),
-        None => context.all_cards.values().collect(),
-    };
+    let mut player_inventory_cards: Vec<&Card> =
+        card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(&player_deck_path));
+    let mut opponent_inventory_cards: Vec<&Card> =
+        card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(&opponent_deck_path));
 
     let mut player_won_cnt = 0;
     let mut opponent_won_cnt = 0;

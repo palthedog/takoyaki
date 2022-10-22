@@ -5,8 +5,13 @@ use super::*;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum TakoyakiRequest {
-    // The first message sent from the client.
-    // It must be serialized as JSON format.
+    /// The first message sent from the client.
+    /// It must be serialized as a newline delimited JSON format
+    /// (i.e. the json message must be serialized in a singele line and `'\n'` follows the message)
+    /// Example:
+    /// ```
+    /// {"Manmenmi":{"preferred_format":"Json","name":"Ika"}}"
+    /// ```
     Manmenmi(ManmenmiRequest),
 }
 
@@ -20,14 +25,14 @@ pub enum TakoyakiResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct ErrorResponse {
-    code: ErrorCode,
-    message: String,
+    pub code: ErrorCode,
+    pub message: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct ManmenmiRequest {
-    preferred_format: Format,
-    name: String,
+    pub preferred_format: Format,
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]

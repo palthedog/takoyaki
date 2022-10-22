@@ -47,15 +47,12 @@ pub struct AppArgs {
 #[derive(Subcommand)]
 enum Commands {
     /// play games
-    #[clap(arg_required_else_help = true)]
     Play(PlayArgs),
 
     /// Find stronger deck
-    #[clap(arg_required_else_help = true)]
     TrainDeck(TrainDeckArgs),
 
     /// run server
-    #[clap(arg_required_else_help = true)]
     Server(ServerArgs),
 }
 

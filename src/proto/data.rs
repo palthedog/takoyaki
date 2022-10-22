@@ -10,7 +10,9 @@ pub enum ErrorCode {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum Format {
+    /// New line (`'\n'`) delimited JSON.
     Json,
+    /// Size delimited binary.
     FlexBuffer,
 }
 

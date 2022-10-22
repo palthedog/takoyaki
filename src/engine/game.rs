@@ -10,6 +10,7 @@ pub const DECK_SIZE: usize = 15;
 
 pub const TURN_COUNT: i32 = 12;
 
+#[derive(Clone, Debug)]
 pub struct Context {
     pub board: Board,
     pub all_cards: HashMap<u32, Card>,
