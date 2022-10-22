@@ -11,6 +11,7 @@ use takoyaki::{
     engine::{board, card, game::Context},
     play::{self, PlayArgs},
     players::PlayerType,
+    server::{self, ServerArgs},
     train::{self, deck::TrainDeckArgs},
 };
 
@@ -52,6 +53,10 @@ enum Commands {
     /// Find stronger deck
     #[clap(arg_required_else_help = true)]
     TrainDeck(TrainDeckArgs),
+
+    /// run server
+    #[clap(arg_required_else_help = true)]
+    Server(ServerArgs),
 }
 
 fn main() {
@@ -81,9 +86,11 @@ fn main() {
     let mut opponent = args.opponent.create_player(&context, rng.next_u64());
 
     match args.command {
-        Commands::Play(p_args) => play::run_rand(&context, &mut *player, &mut *opponent, p_args),
-        Commands::TrainDeck(t_args) => {
-            train::deck::train_deck(&context, &mut *player, &mut *opponent, t_args)
+        Commands::Play(args) => play::run_rand(&context, &mut *player, &mut *opponent, args),
+        Commands::TrainDeck(args) => {
+            train::deck::train_deck(&context, &mut *player, &mut *opponent, args)
         }
+        // TODO: Make it a different binary?
+        Commands::Server(args) => server::run_server(&context, args),
     }
 }

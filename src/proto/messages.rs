@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+
+// Do NOT import types from crate::engine to prvent changes in engine/ affect wire format.
+use super::*;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum TakoyakiRequest {
@@ -17,9 +19,9 @@ pub enum TakoyakiResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub enum Format {
-    Json,
-    FlexBuffer,
+pub struct ErrorResponse {
+    code: ErrorCode,
+    message: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -30,20 +32,7 @@ pub struct ManmenmiRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct ManmenmiResponse {
-    board_id: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct ErrorResponse {
-    code: ErrorCode,
-    message: String,
-}
-
-#[derive(Serialize_repr, Deserialize_repr, Debug, PartialEq, Eq)]
-#[repr(u8)]
-pub enum ErrorCode {
-    /// You can't retry.
-    Critical = 0,
+    board: Board,
 }
 
 #[cfg(test)]
@@ -68,12 +57,12 @@ mod tests {
     #[test]
     fn test_serialize_enum() {
         let message = TakoyakiResponse::Error(ErrorResponse {
-            code: ErrorCode::Critical,
-            message: "Critical error...".to_string(),
+            code: ErrorCode::InvalidMessage,
+            message: "error...".into(),
         });
         let serialized = serde_json::to_string(&message).unwrap();
         assert_eq!(
-            r#"{"Error":{"code":0,"message":"Critical error..."}}"#,
+            r#"{"Error":{"code":"InvalidMessage","message":"error..."}}"#,
             serialized
         );
     }
