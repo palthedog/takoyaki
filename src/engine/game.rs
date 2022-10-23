@@ -19,7 +19,9 @@ pub struct Context {
 
 impl Context {
     pub fn card_ref(&self, card_id: u32) -> &Card {
-        self.all_cards.get(&card_id).unwrap()
+        self.all_cards.get(&card_id).unwrap_or_else(||{
+            panic!("Unknown card ID: {}", card_id);
+        })
     }
 }
 

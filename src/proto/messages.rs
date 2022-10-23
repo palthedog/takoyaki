@@ -13,6 +13,8 @@ pub enum TakoyakiRequest {
     /// {"Manmenmi":{"preferred_format":"Json","name":"Ika"}}"
     /// ```
     Manmenmi(ManmenmiRequest),
+
+    SetDeck(SetDeckRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -21,6 +23,8 @@ pub enum TakoyakiResponse {
     Error(ErrorResponse),
 
     Manmenmi(ManmenmiResponse),
+
+    SetDeck(SetDeckResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -28,6 +32,16 @@ pub struct ErrorResponse {
     pub code: ErrorCode,
     pub message: String,
 }
+
+impl ErrorResponse {
+    pub fn new_timeout() -> ErrorResponse {
+        ErrorResponse {
+            code: ErrorCode::Timeout,
+            message: String::from("Timed out"),
+        }
+    }
+}
+
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct ManmenmiRequest {
@@ -37,7 +51,19 @@ pub struct ManmenmiRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct ManmenmiResponse {
-    board: Board,
+    pub board: Board,
+}
+
+type CardId = u32;
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct SetDeckRequest {
+    pub deck: Vec<CardId>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct SetDeckResponse {
+    pub board: Board,
 }
 
 #[cfg(test)]
@@ -62,12 +88,12 @@ mod tests {
     #[test]
     fn test_serialize_enum() {
         let message = TakoyakiResponse::Error(ErrorResponse {
-            code: ErrorCode::InvalidMessage,
+            code: ErrorCode::MalformedPayload,
             message: "error...".into(),
         });
         let serialized = serde_json::to_string(&message).unwrap();
         assert_eq!(
-            r#"{"Error":{"code":"InvalidMessage","message":"error..."}}"#,
+            r#"{"Error":{"code":"MalformedPayload","message":"error..."}}"#,
             serialized
         );
     }

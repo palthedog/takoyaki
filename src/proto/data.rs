@@ -3,23 +3,31 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum ErrorCode {
-    InvalidArgument,
+    Timeout,
 
-    InvalidMessage,
+    /// The server failed to parse the payload.
+    MalformedPayload,
+
+    /// The server doesn't want this request at this point.
+    BadRequest,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum Format {
     /// New line (`'\n'`) delimited JSON.
     Json,
-    /// Size delimited binary.
-    FlexBuffer,
+
+    // Size delimited binary. Payload must look like
+    // +------------------------+----------------------------+
+    // | size: u32 in bigendian | encoded_body: [u8; <size>] |
+    // +------------------------+----------------------------+
+    Flexbuffers,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Board {
-    board_name: String,
-    cells: Vec<Vec<BoardCell>>,
+    pub board_name: String,
+    pub cells: Vec<Vec<BoardCell>>,
 }
 
 /// An enum reprecents each cell on a board.
