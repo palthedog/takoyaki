@@ -1,14 +1,11 @@
-use clap::Args;
-use log::*;
+use clap::Args;use log::*;
 use rand_mt::Mt64;
+use tokio::{
+    self,
+    net::{TcpListener, TcpStream}, io::AsyncBufReadExt, sync::mpsc::{Sender, Receiver, self}};
 use std::{
-    io::{BufRead, BufReader, Read},
-    net::{SocketAddr, TcpListener, TcpStream},
-    sync::{
-        mpsc::{self, Receiver, Sender},
-        Arc,
-    },
-    thread,
+    sync::Arc,
+    thread, io::Error,
 };
 
 use crate::{
@@ -50,70 +47,109 @@ impl GameSession {
 
 #[derive(Debug)]
 struct Client {
-    stream: BufReader<TcpStream>,
+    stream: tokio::io::BufReader<TcpStream>,
 
     preferred_format: Format,
     name: String,
 }
 
 impl Client {
-    fn new(stream: BufReader<TcpStream>, manmenmi: ManmenmiRequest) -> Self {
+    fn new(stream: TcpStream) -> Self {
         Self {
-            stream,
-            preferred_format: manmenmi.preferred_format,
-            name: manmenmi.name,
+            stream: tokio::io::BufReader::new(stream),
+            preferred_format: Format::Json,
+            name: "<new comer>".into(),
         }
     }
 
-    fn try_establish_connection(mut stream: TcpStream, sender: Sender<Client>) {
-        let mut stream = BufReader::new(stream);
+    fn init(&mut self, manmenmi: ManmenmiRequest) {
+        self.name = manmenmi.name;
+        self.preferred_format = manmenmi.preferred_format;
+    }
+
+    async fn recv_json_request(&mut self) -> Result<TakoyakiRequest, Error> {
         let mut line = String::new();
-        let read = stream
+        self.stream
             .read_line(&mut line)
-            .expect("Failed read data from the stream");
+            .await?;
         info!("Read line: {}", line.trim_end());
-        let manmenmi = serde_json::from_str::<TakoyakiRequest>(&line);
-        match manmenmi {
+        Ok(serde_json::from_str::<TakoyakiRequest>(&line)?)
+    }
+
+    async fn recv_request(&mut self) -> Result<TakoyakiRequest, Error> {
+        match self.preferred_format {
+            Format::Json => self.recv_json_request().await,
+            Format::FlexBuffer => todo!(),
+        }
+    }
+
+    async fn try_establish_connection(stream: TcpStream, sender: Sender<Client>) {
+        let mut client = Client::new(stream);
+        match client.recv_request().await {
             Ok(TakoyakiRequest::Manmenmi(m)) => {
-                info!("{:?}", m);
-                let client = Client::new(stream, m);
-                sender.send(client).unwrap();
-            }
-            Err(err) => error!("The client sent a invalid message: {}", line),
+                client.init(m);
+                sender.send(client).await.unwrap();
+            },
+            Ok(_) => todo!("Bad request"),
+            Err(e) => warn!("Client sent an invalid message: {}", e),
         }
     }
 }
 
-pub fn run_server(context: &Context, args: ServerArgs) {
+async fn create_session_loop(context: AContext)-> Sender<Client> {
     let mut rng = Mt64::from(42);
-
-    let shared_context = Arc::new(context.clone());
-    let (sender, mut receiver): (Sender<Client>, Receiver<Client>) = mpsc::channel();
-
-    let create_session_handler = thread::spawn(move || loop {
-        let c0 = receiver.recv().expect("Server closed while receiving.");
-        let c1 = receiver.recv().expect("Server closed while receiving.");
-        let seed = rng.next_u64();
-        let context = shared_context.clone();
-        thread::spawn(move || {
-            let mut session = GameSession::new(context, c0, c1, Mt64::from(seed));
-            session.start();
-        });
+    let (sender, mut receiver): (Sender<Client>, Receiver<Client>) = mpsc::channel(8);
+    info!("Create session loop is started");
+    tokio::spawn(async move {
+        loop {
+            let c0 = receiver.recv().await.expect("Server closed while receiving.");
+            info!("Client 0 joined: {}", c0.name);
+            let c1 = receiver.recv().await.expect("Server closed while receiving.");
+            info!("Client 1 joined: {}", c1.name);
+            let seed = rng.next_u64();
+            let context = context.clone();
+            thread::spawn(move || {
+                let mut session = GameSession::new(context, c0, c1, Mt64::from(seed));
+                session.start();
+            });
+        }
     });
+    sender
+}
 
-    let listener = TcpListener::bind(&format!("127.0.0.1:{}", args.port))
+async fn run_server_async(context: &Context, args: ServerArgs) {
+    let shared_context = Arc::new(context.clone());
+    let sender = create_session_loop(shared_context.clone()).await;
+
+    let listener: TcpListener = TcpListener::bind(
+        &format!("127.0.0.1:{}", args.port))
+        .await
         .unwrap_or_else(|err| panic!("Failed to listen on the port: {}\n{}", args.port, err));
     info!("Listening at localhost:{}", args.port);
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                info!("A new client is connected: {}", stream.peer_addr().unwrap());
-                Client::try_establish_connection(stream, sender.clone());
+
+    loop {
+        debug!("Waiting for a new client.");
+        match listener.accept().await{
+            Ok((stream, addr)) => {
+                let sender = sender.clone();
+                tokio::spawn(async move {
+                    info!("New client is coming from {}", addr);
+                    Client::try_establish_connection(stream, sender).await;
+                });
             }
             Err(e) => {
-                warn!("Connection failed");
-            }
-        }
+                warn!("Listener is closed: {:?}", e);
+                break;
+            },
+        };
     }
-    info!("Listening port has closed.");
+}
+
+pub fn run_server(context: &Context, args: ServerArgs) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async move {
+        run_server_async(context, args).await
+    });
+    info!("Server is exiting...");
 }
