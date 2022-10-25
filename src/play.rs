@@ -8,7 +8,7 @@ use rand_mt::Mt64;
 use crate::{
     engine::{
         card::{self, Card},
-        game::{self, Context},
+        game::{self, Context}, board::Board,
     },
     players::Player,
     runner,
@@ -40,6 +40,7 @@ pub struct PlayArgs {
 
 pub fn run_rand<'c>(
     context: &'c Context,
+    board: &Board,
     player: &mut dyn Player<'c>,
     opponent: &mut dyn Player<'c>,
     args: PlayArgs,
@@ -66,6 +67,7 @@ pub fn run_rand<'c>(
 
         let (p, o) = runner::run(
             context,
+            board,
             player_deck,
             opponent_deck,
             player,
@@ -95,7 +97,7 @@ pub fn run_rand<'c>(
         "Used decks: p: {:?}, o: {:?}",
         &player_deck_path, &opponent_deck_path
     );
-    info!("Board: {}", &context.board.get_name());
+    info!("Board: {}", board.get_name());
     print_rate(player_won_cnt, opponent_won_cnt, draw_cnt);
 }
 

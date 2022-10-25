@@ -8,7 +8,7 @@ use crate::{
     engine::{
         card::Card,
         game::{self, Context, PlayerId},
-        state::{self, PlayerCardState, State},
+        state::{self, PlayerCardState, State}, board::Board,
     },
     players::*,
 };
@@ -40,6 +40,7 @@ pub fn deal_hands<'c>(
 
 pub fn run<'c>(
     context: &'c Context,
+    board: &Board,
     player_deck: &[&'c Card],
     opponent_deck: &[&'c Card],
     player: &mut dyn Player<'c>,
@@ -57,7 +58,7 @@ pub fn run<'c>(
 
     debug!("Player states initialized");
     debug!("player: {}\nopponent: {}", player_state, opponent_state);
-    let mut state = State::new(context.board.clone(), 0, 0, 0, vec![], vec![]);
+    let mut state = State::new(board.clone(), 0, 0, 0, vec![], vec![]);
     for turn in 0..game::TURN_COUNT {
         debug!("Starting Turn {}", turn + 1);
         let player_action = player.get_action(&state, player_state.get_hands());

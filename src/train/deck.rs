@@ -14,7 +14,7 @@ use rand_mt::Mt64;
 use crate::{
     engine::{
         card::{self, Card},
-        game::{self, Context},
+        game::{self, Context}, board::Board,
     },
     players::Player,
     runner,
@@ -99,6 +99,7 @@ impl<'a, 'b> Display for Report<'a, 'b> {
 struct TrainDeck<'a> {
     rng: Mt64,
     context: &'a Context,
+    board: Board,
     args: TrainDeckArgs,
     inventory_cards: HashMap<u32, &'a Card>,
 }
@@ -106,12 +107,14 @@ struct TrainDeck<'a> {
 impl<'c> TrainDeck<'c> {
     fn new(
         context: &'c Context,
+        board: Board,
         args: TrainDeckArgs,
         inventory_cards: HashMap<u32, &'c Card>,
     ) -> TrainDeck<'c> {
         TrainDeck {
             rng: Mt64::new(42),
             context,
+            board,
             args,
             inventory_cards,
         }
@@ -132,6 +135,7 @@ impl<'c> TrainDeck<'c> {
         for _i in 0..battle_count {
             let (p, o) = runner::run(
                 self.context,
+                &self.board,
                 player_deck,
                 opponent_deck,
                 player,
@@ -378,7 +382,7 @@ impl<'c> TrainDeck<'c> {
                 .deck;
             let (w, l, d) = self.run_battles(1000, best_deck, &validation_deck, player, opponent);
             info!("Validation: Win rate: {:.3}", w as f64 / (w + l + d) as f64);
-            info!("Board: {}", self.context.board.get_name());
+            info!("Board: {}", self.board.get_name());
 
             let next_generation = self.create_next_generation(&mut reports);
             population = next_generation;
@@ -388,11 +392,12 @@ impl<'c> TrainDeck<'c> {
 
 pub fn train_deck<'p, 'c: 'p>(
     context: &'c Context,
+    board: &Board,
     player: &mut dyn Player<'c>,
     opponent: &mut dyn Player<'c>,
     args: TrainDeckArgs,
 ) {
     let inventory_cards =
         card::card_ids_to_card_map(&context.all_cards, &card::load_deck(&args.inventory_path));
-    TrainDeck::new(context, args, inventory_cards).run(player, opponent);
+    TrainDeck::new(context, board.clone(), args, inventory_cards).run(player, opponent);
 }

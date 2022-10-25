@@ -71,7 +71,6 @@ fn main() {
     let board = board::load_board(&args.board_path);
 
     let context = Context {
-        board,
         all_cards,
         enabled_step_execution: args.step_execution,
     };
@@ -83,9 +82,9 @@ fn main() {
     let mut opponent = args.opponent.create_player(&context, rng.next_u64());
 
     match args.command {
-        Commands::Play(args) => play::run_rand(&context, &mut *player, &mut *opponent, args),
+        Commands::Play(args) => play::run_rand(&context, &board, &mut *player, &mut *opponent, args),
         Commands::TrainDeck(args) => {
-            train::deck::train_deck(&context, &mut *player, &mut *opponent, args)
+            train::deck::train_deck(&context, &board, &mut *player, &mut *opponent, args)
         }
         // TODO: Make it a different binary?
         Commands::Server(args) => server::run_server(&context, args),
