@@ -10,6 +10,7 @@ use crate::engine::{
 
 /// The base class for all player implementations.
 pub trait Player<'c> {
+    fn get_name(&self) -> &str;
     fn init_game(&mut self, player_id: PlayerId, context: &'c Context, deck: Vec<&'c Card>);
 
     /// It will be called once before the first action.

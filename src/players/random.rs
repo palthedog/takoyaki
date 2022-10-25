@@ -25,6 +25,10 @@ impl RandomPlayer {
 }
 
 impl<'c> Player<'c> for RandomPlayer {
+    fn get_name(&self) -> &str {
+        "rand"
+    }
+
     fn init_game(&mut self, player_id: PlayerId, _context: &'c Context, _deck: Vec<&'c Card>) {
         self.player_id = player_id;
     }

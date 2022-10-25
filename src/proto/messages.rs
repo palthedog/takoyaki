@@ -7,14 +7,14 @@ use super::*;
 pub enum TakoyakiRequest {
     /// The first message sent from the client.
     /// It must be serialized as a newline delimited JSON format
-    /// (i.e. the json message must be serialized in a singele line and `'\n'` follows the message)
+    /// (i.e. the json message must be serialized in a single line and `'\n'` follows the message)
     /// Example:
     /// ```
-    /// r#"{"Manmenmi":{"preferred_format":"Json","name":"Ika"}}"#;
+    /// r#"{"Manmenmi":{"preferred_format":"Json","name":"Ika"}}\n"#;
     /// ```
     Manmenmi(ManmenmiRequest),
 
-    SetDeck(SetDeckRequest),
+    JoinGame(JoinGameRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -24,7 +24,7 @@ pub enum TakoyakiResponse {
 
     Manmenmi(ManmenmiResponse),
 
-    SetDeck(SetDeckResponse),
+    JoinGame(JoinGameResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -42,7 +42,6 @@ impl ErrorResponse {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct ManmenmiRequest {
     pub preferred_format: Format,
@@ -51,19 +50,29 @@ pub struct ManmenmiRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct ManmenmiResponse {
-    pub board: Board,
+    pub available_games: Vec<GameInfo>,
 }
 
-type CardId = u32;
-
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct SetDeckRequest {
+pub struct JoinGameRequest {
+    pub game_id: GameId,
     pub deck: Vec<CardId>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct SetDeckResponse {
-    pub board: Board,
+pub struct JoinGameResponse {
+    player_id: PlayerId,
+    initial_hands: Vec<CardId>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct AcceptHandsRequest {
+    pub accept: bool
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct AcceptHandsResponse {
+    // OK
 }
 
 #[cfg(test)]

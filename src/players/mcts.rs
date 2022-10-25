@@ -21,6 +21,7 @@ use super::{
 pub struct MctsPlayer<'c> {
     iterations: usize,
 
+    name: String,
     player_id: PlayerId,
     traverser: Option<Traverser<'c>>,
     rng: Mt64,
@@ -30,6 +31,7 @@ impl<'c> MctsPlayer<'c> {
     pub fn new(seed: u64, iterations: usize) -> Self {
         let rng = Mt64::new(seed);
         MctsPlayer {
+            name: format!("mcts-{}", iterations),
             iterations,
             player_id: PlayerId::Player,
             traverser: None,
@@ -39,6 +41,10 @@ impl<'c> MctsPlayer<'c> {
 }
 
 impl<'c> Player<'c> for MctsPlayer<'c> {
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+
     fn init_game(&mut self, player_id: PlayerId, context: &'c Context, deck: Vec<&'c Card>) {
         self.player_id = player_id;
         self.traverser = Some(Traverser::new(

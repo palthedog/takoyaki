@@ -3,6 +3,9 @@ use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
+pub type GameId = u32;
+pub type CardId = u32;
+
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum ErrorCode {
     Timeout,
@@ -14,7 +17,7 @@ pub enum ErrorCode {
     BadRequest,
 
     NetworkError,
-    SerializationFailed,
+    SerializationFailure,
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -51,9 +54,33 @@ impl Display for GameResult {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct GameInfo {
+    pub game_id: GameId,
+    pub board: Board,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Board {
-    pub board_name: String,
+    pub name: String,
     pub cells: Vec<Vec<BoardCell>>,
+}
+
+impl From<&crate::engine::board::Board> for Board {
+    fn from(b: &crate::engine::board::Board) -> Self {
+        let (w, h) = b.get_size();
+        let mut cells = Vec::with_capacity(h as usize);
+        for y in 0..h {
+            let mut row = Vec::with_capacity(w as usize);
+            for x in 0..w {
+                row.push(b.get_cell(crate::engine::board::BoardPosition{x, y}).into());
+            }
+            cells.push(row);
+        }
+        Board {
+            name: b.get_name().into(),
+            cells
+        }
+    }
 }
 
 /// An enum reprecents each cell on a board.
@@ -69,6 +96,19 @@ pub enum BoardCell {
 
     InkNorth = -1,
     SpecialNorth = -2,
+}
+
+impl From<crate::engine::board::BoardCell> for BoardCell {
+    fn from(c: crate::engine::board::BoardCell) -> Self {
+        match c {
+            crate::engine::board::BoardCell::None => BoardCell::None,
+            crate::engine::board::BoardCell::Wall => BoardCell::Wall,
+            crate::engine::board::BoardCell::Ink(crate::engine::game::PlayerId::Player) => BoardCell::InkSouth,
+            crate::engine::board::BoardCell::Ink(crate::engine::game::PlayerId::Opponent) => BoardCell::InkNorth,
+            crate::engine::board::BoardCell::Special(crate::engine::game::PlayerId::Player) => BoardCell::SpecialSouth,
+            crate::engine::board::BoardCell::Special(crate::engine::game::PlayerId::Opponent) => BoardCell::SpecialNorth,
+        }
+    }
 }
 
 #[derive(Serialize_repr, Deserialize_repr, Debug, PartialEq, Eq)]

@@ -106,7 +106,7 @@ impl Connection {
             Ok(v) => v,
             Err(e) => {
                 return Err(Error{
-                    code: ErrorCode::SerializationFailed,
+                    code: ErrorCode::SerializationFailure,
                     message: format!("{}", e),
                 });
             }
@@ -136,7 +136,7 @@ impl Connection {
             Ok(v) => v,
             Err(e) => {
                 return Err(Error{
-                    code: ErrorCode::SerializationFailed,
+                    code: ErrorCode::SerializationFailure,
                     message: format!("{}", e),
                 });
             }
