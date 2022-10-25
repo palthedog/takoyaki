@@ -10,7 +10,7 @@ pub enum TakoyakiRequest {
     /// (i.e. the json message must be serialized in a singele line and `'\n'` follows the message)
     /// Example:
     /// ```
-    /// {"Manmenmi":{"preferred_format":"Json","name":"Ika"}}"
+    /// r#"{"Manmenmi":{"preferred_format":"Json","name":"Ika"}}"#;
     /// ```
     Manmenmi(ManmenmiRequest),
 
