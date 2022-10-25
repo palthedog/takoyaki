@@ -1,31 +1,30 @@
 use std::sync::Arc;
 use std::time::Duration;
-
 use log::*;
 use rand_mt::Mt64;
+use tokio::net::TcpStream;
 use tokio::sync::Mutex;
+use tokio::sync::mpsc::Sender;
 use tokio::time::timeout;
 
 use crate::engine::card::Card;
-use crate::engine::game::Context;
-use crate::engine::state;
 use crate::proto::{ErrorResponse, TakoyakiResponse, Board, BoardCell, ManmenmiResponse, TakoyakiRequest, ErrorCode};
 
 use super::AContext;
-use super::connection::Connection;
+use super::connection::{Connection, Error};
 
 /// An object represents a session of a game
 #[derive(Debug)]
 pub struct GameSession {
     context: AContext,
-    client_south: Arc<Mutex<Connection>>,
-    client_north: Arc<Mutex<Connection>>,
+    client_south: Arc<Mutex<ClientConnection>>,
+    client_north: Arc<Mutex<ClientConnection>>,
 
     rng: Mt64,
 }
 
 impl GameSession {
-    pub fn new(context: AContext, client_south: Connection, client_north: Connection, rng: Mt64) -> Self {
+    pub fn new(context: AContext, client_south: ClientConnection, client_north: ClientConnection, rng: Mt64) -> Self {
         Self {
             context,
             client_south: Arc::new(Mutex::new(client_south)),
@@ -70,8 +69,7 @@ impl GameSession {
          */
     }
 
-    //async fn get_deck<'c>(self: Arc<Self>, context: &'c Context, client: &mut Connection) -> Result<Vec<&'c Card>, ErrorResponse> {
-    async fn get_deck<'c>(client: Arc<Mutex<Connection>>) -> Result<Vec<u32>, ErrorResponse> {
+    async fn get_deck<'c>(client: Arc<Mutex<ClientConnection>>) -> Result<Vec<u32>, Error> {
         let board = Board {
             board_name: "test".into(),
             cells: vec![
@@ -84,16 +82,68 @@ impl GameSession {
             ManmenmiResponse {
                 board
             }
-        )).await;
+        )).await?;
 
-        let req : TakoyakiRequest = client.recv_request().await.unwrap();
+        let req : TakoyakiRequest = client.recv_request().await?;
         if let TakoyakiRequest::SetDeck(set_deck) = req {
             Ok(set_deck.deck)
         } else {
-            Err(ErrorResponse{
+            Err(Error{
                 code: ErrorCode::BadRequest,
                 message: "Expected request type: SetDeckRequest".into()
             })
         }
+    }
+}
+
+pub async fn try_establish_connection(stream: TcpStream, client_sender: Sender<ClientConnection>) {
+    let mut conn = Connection::new(stream);
+    match timeout(Duration::from_secs(10), conn.recv()).await {
+        Ok(Ok(TakoyakiRequest::Manmenmi(m))) => {
+            conn.set_preferred_format(m.preferred_format);
+            let client = ClientConnection {
+                name: m.name,
+                connection: conn,
+            };
+            client_sender.send(client).await.unwrap();
+        },
+        Ok(Ok(_)) => {
+            conn.send(
+                &TakoyakiResponse::Error(ErrorResponse{
+                    code: ErrorCode::BadRequest,
+                    message: "Expected request type: SetDeckRequest".into()
+                })
+            ).await.unwrap_or_default();
+        }
+        Ok(Err(e)) => {
+            conn.send(&TakoyakiResponse::Error(err_to_res(e))).await.unwrap_or_default();
+        }
+        Err(_elapsed) => {
+            conn.send(&TakoyakiResponse::Error(ErrorResponse::new_timeout())).await.unwrap_or_default();
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ClientConnection {
+    pub name: String,
+
+    pub connection: Connection,
+}
+
+fn err_to_res(e: Error) -> ErrorResponse {
+    ErrorResponse{
+        code: e.code,
+        message: e.message,
+    }
+}
+
+impl ClientConnection {
+    pub async fn recv_request(&mut self) -> Result<TakoyakiRequest, Error> {
+        self.connection.recv::<TakoyakiRequest>().await
+    }
+
+    pub async fn send_response(&mut self, response: &TakoyakiResponse) -> Result<(), Error> {
+        self.connection.send::<TakoyakiResponse>(response).await
     }
 }

@@ -1,3 +1,4 @@
+pub mod client;
 pub mod engine;
 pub mod play;
 pub mod players;

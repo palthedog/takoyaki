@@ -1,23 +1,25 @@
 use log::*;
+use serde::{Deserialize, Serialize};
 use tokio::{
     self,
     io::{AsyncBufReadExt, AsyncWriteExt, AsyncReadExt},
-    sync::mpsc::Sender, time::timeout
 };
 use tokio::net::TcpStream;
-use std::{
-    io::Error, time::Duration, fmt::Display,
-};
+use std::fmt::Display;
 
 use crate::proto::*;
+
+#[derive(Debug)]
+pub struct Error {
+    pub code: ErrorCode,
+    pub message: String,
+}
 
 #[derive(Debug)]
 pub struct Connection {
     stream: tokio::io::BufReader<TcpStream>,
 
     preferred_format: Format,
-    name: String,
-
     buffer: Vec<u8>,
 }
 
@@ -26,109 +28,135 @@ impl Connection {
         Self {
             stream: tokio::io::BufReader::new(stream),
             preferred_format: Format::Json,
-            name: "<new comer>".into(),
             buffer: vec![],
         }
     }
 
-    fn init(&mut self, manmenmi: ManmenmiRequest) {
-        self.name = manmenmi.name;
-        self.preferred_format = manmenmi.preferred_format;
+    pub fn set_preferred_format(&mut self, format: Format) {
+        self.preferred_format = format;
     }
 
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
-
-    pub async fn recv_request(&mut self) -> Result<TakoyakiRequest, ErrorResponse> {
+    pub async fn recv<P>(&mut self) -> Result<P, Error>
+    where P: for<'de> Deserialize<'de> {
         match self.preferred_format {
-            Format::Json => self.recv_json_request().await,
-            Format::Flexbuffers => self.recv_flexbuffers_request().await,
+            Format::Json => self.recv_json().await,
+            Format::Flexbuffers => self.recv_flexbuffers().await,
         }
     }
 
-    pub async fn send_response(&mut self, response: &TakoyakiResponse) -> Result<(), Error> {
-        let f = match self.preferred_format {
-            Format::Json => self.send_json_response(response),
-            _ => todo!(),
-        };
-
-        f.await
-    }
-
-    pub async fn try_establish_connection(stream: TcpStream, client_sender: Sender<Connection>) {
-        let mut client = Connection::new(stream);
-        match timeout(Duration::from_secs(10), client.recv_request()).await {
-            Ok(Ok(TakoyakiRequest::Manmenmi(m))) => {
-                client.init(m);
-                client_sender.send(client).await.unwrap();
-            },
-            Ok(Ok(_)) => {
-                client.send_response(
-                    &TakoyakiResponse::Error(ErrorResponse{
-                    code: ErrorCode::BadRequest,
-                    message: "Expected request type: SetDeckRequest".into()
-                    })
-                ).await.unwrap_or_default();
-            }
-            Ok(Err(err_res)) => {
-                client.send_response(&TakoyakiResponse::Error(err_res)).await.unwrap_or_default();
-            }
-            Err(_elapsed) => {
-                client.send_response(&TakoyakiResponse::Error(ErrorResponse::new_timeout())).await.unwrap_or_default();
-            }
-        }
-    }
-
-    async fn recv_json_request(&mut self) -> Result<TakoyakiRequest, ErrorResponse> {
+    async fn recv_json<P>(&mut self) -> Result<P, Error>
+    where P: for<'de> Deserialize<'de> {
         let mut line = String::new();
         if let Err(e) = self.stream
             .read_line(&mut line)
             .await {
-                return Err(ErrorResponse {
+                return Err(Error {
                     code: ErrorCode::MalformedPayload,  // network error?
                     message: e.to_string(),
                 });
             }
         info!("Read line: {}", line.trim_end());
-        match serde_json::from_str::<TakoyakiRequest>(&line) {
+        match serde_json::from_str::<P>(&line) {
             Ok(req) => Ok(req),
-            Err(e) =>  Err(ErrorResponse {
+            Err(e) =>  Err(Error {
                 code: ErrorCode::MalformedPayload,
                 message: e.to_string(),
             }),
         }
     }
 
-    async fn recv_flexbuffers_request(&mut self) -> Result<TakoyakiRequest, ErrorResponse> {
+    async fn recv_flexbuffers<P>(&mut self) -> Result<P, Error>
+    where P: for <'de> Deserialize<'de> {
         let size: u32 = match self.stream.read_u32().await {
             Ok(v) => v,
-            Err(e) => return Err(ErrorResponse{
+            Err(e) => return Err(Error{
                 code: ErrorCode::MalformedPayload,
-                message: format!("The first 4 bytes of payload must be a size of following message. This unsigned 32bit integer must be encoded as big-endian: {}", e.to_string()),
+                message: format!("The first 4 bytes of payload must be a size of following message. This unsigned 32bit integer must be encoded as big-endian: {}", e),
             }),
         };
         if let Err(e) = self.stream.get_mut().take(size.into()).read_to_end(&mut self.buffer).await {
-            return Err(ErrorResponse{
+            return Err(Error{
                 code: ErrorCode::MalformedPayload,
-                message: format!("Malformed body: {}", e.to_string()),
+                message: format!("Malformed body: {}", e),
             });
         };
 
         match flexbuffers::from_slice(&self.buffer) {
             Ok(req) => Ok(req),
-            Err(e) => Err(ErrorResponse{
+            Err(e) => Err(Error{
                 code: ErrorCode::MalformedPayload,
-                message: format!("Malformed body: {}", e.to_string()),
+                message: format!("Malformed body: {}", e),
             }),
         }
     }
 
-    async fn send_json_response(&mut self, response: &TakoyakiResponse) -> Result<(), Error> {
-        let serialized = serde_json::to_vec(&response)?;
+    pub async fn send<P>(&mut self, response: &P) -> Result<(), Error>
+        where P: Serialize
+    {
+        match self.preferred_format {
+            Format::Json => self.send_json(response).await,
+            Format::Flexbuffers => self.send_flexbuffers(response).await,
+        }
+    }
+
+    async fn send_json<P>(&mut self, response: &P) -> Result<(), Error>
+        where P: Serialize
+    {
+        let serialized = match serde_json::to_vec(&response) {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(Error{
+                    code: ErrorCode::SerializationFailed,
+                    message: format!("{}", e),
+                });
+            }
+        };
+
         trace!("Serialized data: {:?}", serialized);
-        self.stream.get_mut().write_all(&serialized).await?;
-        self.stream.get_mut().write_u8(b'\n').await?;
+        if let Err(_e) = self.stream.get_mut().write_all(&serialized).await {
+            return Err(Error{
+                code: ErrorCode::NetworkError,
+                message: "Failed to write data into the network stream".into(),
+            });
+        }
+
+        if let Err(_e) = self.stream.get_mut().write_u8(b'\n').await {
+            return Err(Error{
+                code: ErrorCode::NetworkError,
+                message: "Failed to write the delimiter into the network stream".into(),
+            });
+        }
+        Ok(())
+    }
+
+    async fn send_flexbuffers<P>(&mut self, response: &P) -> Result<(), Error>
+        where P: Serialize
+    {
+        let serialized = match flexbuffers::to_vec(&response) {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(Error{
+                    code: ErrorCode::SerializationFailed,
+                    message: format!("{}", e),
+                });
+            }
+        };
+        let size = serialized.len();
+        trace!("Serialized data size: {}", size);
+        // Write the size first.
+        if let Err(_e) = self.stream.get_mut().write_u32(size as u32).await {
+            return Err(Error{
+                code: ErrorCode::NetworkError,
+                message: "Failed to write the size delimiter into the network stream".into(),
+            });
+        }
+        // Then, the body follows
+        if let Err(_e) = self.stream.get_mut().write_all(&serialized).await {
+            return Err(Error{
+                code: ErrorCode::NetworkError,
+                message: "Failed to write data into the network stream".into(),
+            });
+        }
         Ok(())
     }
 }
@@ -141,7 +169,7 @@ impl Drop for Connection {
 
 impl Display for Connection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Connection(name: {}, addr: {:?})", self.name, self.stream.get_ref().peer_addr())?;
+        write!(f, "Connection(addr: {:?})", self.stream.get_ref().peer_addr())?;
         Ok(())
     }
 }

@@ -667,7 +667,7 @@ mod tests {
         let player_initial_deck = context.all_cards.values().collect_vec();
         let mut traverser = Traverser::new(&context, PlayerId::Player, player_initial_deck, SEED);
 
-        let state = State::new(board.clone(), 0, 0, 0, vec![], vec![]);
+        let state = State::new(board, 0, 0, 0, vec![], vec![]);
         let mut root_node = traverser.create_root_node(&state);
 
         // The root node is still a leaf node.

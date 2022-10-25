@@ -1,7 +1,9 @@
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum ErrorCode {
     Timeout,
 
@@ -10,18 +12,42 @@ pub enum ErrorCode {
 
     /// The server doesn't want this request at this point.
     BadRequest,
+
+    NetworkError,
+    SerializationFailed,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum Format {
     /// New line (`'\n'`) delimited JSON.
     Json,
 
     // Size delimited binary. Payload must look like
-    // +------------------------+----------------------------+
-    // | size: u32 in bigendian | encoded_body: [u8; <size>] |
-    // +------------------------+----------------------------+
+    // +-------------------------+----------------------------+
+    // | size: u32 in big-endian | encoded_body: [u8; <size>] |
+    // +-------------------------+----------------------------+
     Flexbuffers,
+}
+
+#[derive(Debug)]
+pub struct GameResult {
+    pub score: u32,
+    pub opponent_score: u32,
+}
+
+impl Display for GameResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,
+               "GameResult: {}(score: {}, opponent: {})",
+               match self.score.cmp(&self.opponent_score) {
+                   std::cmp::Ordering::Less => "Lose",
+                   std::cmp::Ordering::Equal => "Draw",
+                   std::cmp::Ordering::Greater => "Win",
+               },
+               self.score,
+               self.opponent_score)?;
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]

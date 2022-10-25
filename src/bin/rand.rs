@@ -1,16 +1,12 @@
 extern crate env_logger;
 extern crate log;
 
-use takoyaki::players::random::RandomPlayer;
-use std::path::PathBuf;
+use takoyaki::{players::random::RandomPlayer, client::Client, proto::Format};
 
-use clap::{self, Parser, Subcommand};
+use clap::{self, Parser};
 use log::*;
-use rand_mt::Mt64;
 
-use takoyaki::{
-    engine::{board, card, game::Context},
-};
+use takoyaki::engine::{card, game::Context};
 
 #[derive(Parser)]
 pub struct AppArgs {
@@ -31,15 +27,21 @@ fn main() {
     let args = AppArgs::parse();
 
     let all_cards = card::load_cards(&args.card_dir);
-    info!("yo");
+    let context = Context {
+        all_cards,
+        enabled_step_execution: false,
+    };
 
-/*
     let client: Client<RandomPlayer> = Client::new(
+        &context,
+        Format::Json,
         RandomPlayer::new(42),
     );
 
-    match client.connect(&args.server).await {
-
-    }
-*/
+    info!("Joining a game");
+    match client.join_game(&args.server) {
+        Ok(result) => info!("{}", result),
+        Err(e) => error!("Failed to join a game: {}", e),
+    };
+    info!("quiting...");
 }

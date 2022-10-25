@@ -1,9 +1,6 @@
 use std::{collections::HashMap, fmt::Display};
 
-use super::{
-    board::Board,
-    card::{Card, CardPosition},
-};
+use super::card::{Card, CardPosition};
 
 pub const HAND_SIZE: usize = 4;
 pub const DECK_SIZE: usize = 15;
