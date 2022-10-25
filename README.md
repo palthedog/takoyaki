@@ -9,7 +9,7 @@ The current goals of this project are:
 List IDs of cards which you already have in `data/deck/mine` or somewhere else.
 Then, run 'train-deck' command:
 ```
-RUST_LOG=info cargo run --release -- train-deck --max-generation=1000 --battles-per-epoch=10 --population-size=30 --elite-count=10 -i data/decks/mine
+RUST_LOG=info cargo run --bin takoyaki --release -- train-deck --max-generation=1000 --battles-per-epoch=10 --population-size=30 --elite-count=10 -i data/decks/mine
 ```
 The command can produce decks storonger than the starter deck on random plays (>80% win rate).
 
@@ -17,11 +17,11 @@ The command can produce decks storonger than the starter deck on random plays (>
 Currently, Takoyaki doesn't support playing games against AIs. Instead, you can watch AI v.s. AI battles.
 You can run a following command to see a battle:
 ```
-cargo run --release -- --step-execution --player=random --opponent=mcts-1000 play --play-cnt=1 --player-deck-path=data/decks/starter  --opponent-deck-path=data/decks/starter
+cargo run --bin takoyaki --release -- --step-execution --player=random --opponent=mcts-1000 play --play-cnt=1 --player-deck-path=data/decks/starter  --opponent-deck-path=data/decks/starter
 ```
 the result would be something like
 ```
-UDON[~/work/takoyaki/](master)$ cargo run --release -- --step-execution --player=random --opponent=mcts-1000 play --play-cnt=1 --player-deck-path=data/decks/starter  --opponent-deck-path=data/decks/starter
+UDON[~/work/takoyaki/](master)$ cargo run --bin takoyaki --release -- --step-execution --player=random --opponent=mcts-1000 play --play-cnt=1 --player-deck-path=data/decks/starter  --opponent-deck-path=data/decks/starter
     Finished release [optimized] target(s) in 0.01s
      Running `target/release/takoyaki --step-execution --player=random --opponent=mcts-1000 play --play-cnt=1 --player-deck-path=data/decks/starter --opponent-deck-path=data/decks/starter`
 Player action: Put(batoroika) @ [p: [2,18], r: Right, s: false]
