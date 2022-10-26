@@ -83,6 +83,18 @@ pub struct Board {
 }
 
 impl Board {
+    pub fn new(name: String,
+               cells: Vec<Vec<BoardCell>>) -> Self {
+        let width = cells[0].len() as i32;
+        let height = cells.len() as i32;
+        Self {
+            name,
+            cells,
+            width,
+            height,
+        }
+    }
+
     pub fn get_name(&self) -> &str {
         &self.name
     }

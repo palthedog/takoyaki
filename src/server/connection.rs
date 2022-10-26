@@ -55,7 +55,7 @@ impl Connection {
                     message: e.to_string(),
                 });
             }
-        info!("Read line: {}", line.trim_end());
+        debug!("Read line: {}", line.trim_end());
         match serde_json::from_str::<P>(&line) {
             Ok(req) => Ok(req),
             Err(e) =>  Err(Error {

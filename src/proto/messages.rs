@@ -80,17 +80,20 @@ pub struct AcceptHandsRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct AcceptHandsResponse {
-    pub initial_hands: Vec<CardId>,
+    pub hands: Vec<CardId>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct SelectActionRequest {
-    
+    pub action: Action,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct SelectActionResponse {
-    
+    pub opponent_action: Action,
+    pub hands: Vec<CardId>,
+
+    pub game_result: Option<GameResult>,
 }
 
 #[cfg(test)]
