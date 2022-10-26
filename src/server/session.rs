@@ -11,7 +11,7 @@ use tokio::time::timeout;
 
 use crate::engine::board::Board;
 
-use crate::engine::game::{self};
+use crate::engine::game;
 use crate::engine::state::{PlayerCardState, State};
 use crate::proto::{self, *};
 
@@ -25,8 +25,6 @@ pub struct GameSession {
     board: Arc<Board>,
     client_south: Arc<Mutex<ClientConnection>>,
     client_north: Arc<Mutex<ClientConnection>>,
-
-    state_south: PlayerCardState,
 }
 
 impl GameSession {
@@ -38,7 +36,6 @@ impl GameSession {
             board,
             client_south: Arc::new(Mutex::new(client_south)),
             client_north: Arc::new(Mutex::new(client_north)),
-            state_south: PlayerCardState::new(vec![], vec![]),
         }
     }
 

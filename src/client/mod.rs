@@ -1,17 +1,20 @@
-
+use paste::paste;
 use tokio::net::TcpStream;
 
-use paste::paste;
-
 use crate::{
-    players::Player, proto::*, engine::{card::{Card, self}}, server::{connection::Connection, AContext},
+    players::Player,
+    proto::*,
+    engine::card::{Card, self},
+    server::{connection::Connection, AContext},
 };
+
+pub type GamePickerFn = Box<dyn Fn(&[GameInfo]) -> (GameId, Vec<Card>)>;
 
 pub struct Client<P: Player> {
     context: AContext,
     preferred_format: Format,
     player: P,
-    game_picker: Box<dyn Fn(&[GameInfo]) -> (GameId, Vec<Card>)>,
+    game_picker: GamePickerFn,
 }
 
 struct Session<'p, P: Player> {
@@ -21,7 +24,7 @@ struct Session<'p, P: Player> {
 
 impl<P: Player> Client<P> {
     pub fn new(context: AContext, preferred_format: Format, player: P,
-               game_picker: Box<dyn Fn(&[GameInfo]) -> (GameId, Vec<Card>)>
+               game_picker: GamePickerFn
     )-> Self {
         Self {
             context,
@@ -39,7 +42,7 @@ impl<P: Player> Client<P> {
         })
     }
 
-    pub async fn join_game_async<'p>(&'p mut self, host: &str) -> Result<Session<'p, P>, String> {
+    async fn join_game_async<'p>(&'p mut self, host: &str) -> Result<Session<'p, P>, String> {
         let stream = TcpStream::connect(host).await;
         let stream = match stream {
             Ok(v) => v,

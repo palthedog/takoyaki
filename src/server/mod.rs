@@ -49,7 +49,7 @@ async fn create_session_loop(context: AContext, board: Board, seed: u64)-> Sende
                     client_north,
                     rng,
                 ));
-                session.start().await;
+                let _result = session.start().await;
             });
         }
     });
