@@ -180,10 +180,8 @@ pub fn update_state(state: &mut State, player_action: &Action, opponent_action: 
 }
 
 fn maybe_consume_special_points(special_points: &mut i32, action: &Action) {
-    if let Action::Put(card, card_position) = action {
-        if card_position.special {
-            *special_points -= card.get_special_cost();
-        }
+    if let Action::Special(card, _) = action {
+        *special_points -= card.get_special_cost();
     }
 }
 
@@ -191,7 +189,8 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
     let mut priorities: HashMap<BoardPosition, i32> = HashMap::new();
 
     // Filling player's cell
-    if let Action::Put(card, card_position) = player_action {
+    if !player_action.is_pass() {
+        let (card, card_position) = player_action.get_card_and_position();
         for (board_pos, cell) in card.get_cells_on_board_coord(card_position) {
             // Modify board
             let fill = cell.cell_type.to_board_cell(PlayerId::Player);
@@ -201,7 +200,8 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
         }
     }
 
-    if let Action::Put(card, card_position) = opponent_action {
+    if !opponent_action.is_pass() {
+        let (card, card_position) = opponent_action.get_card_and_position();
         for (board_pos, cell) in card.get_cells_on_board_coord(card_position) {
             // Modify board
             let priority: i32 = *priorities
@@ -224,7 +224,8 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
 pub fn is_valid_action(state: &State, player_id: PlayerId, action: &Action) -> bool {
     match action {
         Action::Pass(_) => true,
-        Action::Put(card, pos) => is_valid_action_put(state, player_id, card, pos),
+        Action::Put(card, pos) => is_valid_action_put(state, player_id, card, pos, false),
+        Action::Special(card, pos) => is_valid_action_put(state, player_id, card, pos, true),
     }
 }
 
@@ -233,8 +234,9 @@ fn is_valid_action_put(
     player_id: PlayerId,
     card: &Card,
     position: &CardPosition,
+    special: bool
 ) -> bool {
-    if position.special {
+    if special {
         match player_id {
             PlayerId::Player => {
                 if state.player_special_count < card.get_special_cost() {
@@ -249,18 +251,17 @@ fn is_valid_action_put(
         }
     }
 
-    if has_conflict(&state.board, card, position) {
+    if has_conflict(&state.board, card, position, special) {
         return false;
     }
 
-    if !has_touching_point(&state.board, player_id, card, position) {
+    if !has_touching_point(&state.board, player_id, card, position, special) {
         return false;
     }
     true
 }
 
-fn has_conflict(board: &Board, card: &Card, card_position: &CardPosition) -> bool {
-    let special = card_position.special;
+fn has_conflict(board: &Board, card: &Card, card_position: &CardPosition, special: bool) -> bool {
     for (board_pos, _cell) in card.get_cells_on_board_coord(card_position) {
         let board_cell = board.get_cell(board_pos);
         let conflict = match (board_cell, special) {
@@ -282,6 +283,7 @@ fn has_touching_point(
     player_id: PlayerId,
     card: &Card,
     card_position: &CardPosition,
+    special: bool,
 ) -> bool {
     #[rustfmt::skip]
     const AROUND_DIFF: [(i32, i32); 8] = [
@@ -289,7 +291,6 @@ fn has_touching_point(
         (-1,  0),/*(0,  0),*/(1,  0),
         (-1,  1),  (0,  1),  (1,  1),
     ];
-    let special = card_position.special;
     for (board_pos, _cell) in card.get_cells_on_board_coord(card_position) {
         for diff in AROUND_DIFF {
             let board_pos = BoardPosition {
@@ -400,7 +401,6 @@ pub mod tests {
                     x: 1,
                     y: 1,
                     rotation: Rotation::Up,
-                    special: false
                 }
             )
         ));
@@ -415,7 +415,6 @@ pub mod tests {
                     x: 5,
                     y: 1,
                     rotation: Rotation::Up,
-                    special: false
                 }
             )
         ));
@@ -430,7 +429,6 @@ pub mod tests {
                     x: 2,
                     y: 1,
                     rotation: Rotation::Up,
-                    special: false
                 }
             )
         ));
@@ -458,7 +456,6 @@ pub mod tests {
                     x: 1,
                     y: 1,
                     rotation: Rotation::Up,
-                    special: false
                 }
             )
         ));
@@ -487,7 +484,6 @@ pub mod tests {
                     x: 1,
                     y: 1,
                     rotation: Rotation::Up,
-                    special: false
                 }
             )
         ));
@@ -502,7 +498,6 @@ pub mod tests {
                     x: 3,
                     y: 1,
                     rotation: Rotation::Up,
-                    special: false
                 }
             )
         ));
@@ -540,7 +535,6 @@ pub mod tests {
                     x: 5,
                     y: 4,
                     rotation: Rotation::Up,
-                    special: false
                 }
             )
         ));
@@ -553,7 +547,6 @@ pub mod tests {
                     x: 3,
                     y: 5,
                     rotation: Rotation::Right,
-                    special: false
                 }
             )
         ));
@@ -566,7 +559,6 @@ pub mod tests {
                     x: 1,
                     y: 3,
                     rotation: Rotation::Down,
-                    special: false
                 }
             )
         ));
@@ -579,7 +571,6 @@ pub mod tests {
                     x: 4,
                     y: 1,
                     rotation: Rotation::Left,
-                    special: false
                 }
             )
         ));
@@ -613,13 +604,12 @@ pub mod tests {
         assert!(!is_valid_action(
             &state,
             PlayerId::Player,
-            &Action::Put(
+            &Action::Special(
                 card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
                     rotation: Rotation::Right,
-                    special: true
                 }
             )
         ));
@@ -643,13 +633,12 @@ pub mod tests {
         assert!(is_valid_action(
             &state,
             PlayerId::Player,
-            &Action::Put(
+            &Action::Special(
                 card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
                     rotation: Rotation::Right,
-                    special: true
                 }
             )
         ));
@@ -671,13 +660,12 @@ pub mod tests {
         assert!(is_valid_action(
             &state,
             PlayerId::Player,
-            &Action::Put(
+            &Action::Special(
                 card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
                     rotation: Rotation::Right,
-                    special: true
                 }
             )
         ));
@@ -690,7 +678,6 @@ pub mod tests {
                     x: 1,
                     y: 1,
                     rotation: Rotation::Right,
-                    special: false // special is OFF
                 }
             )
         ));
@@ -712,13 +699,12 @@ pub mod tests {
         assert!(!is_valid_action(
             &state,
             PlayerId::Player,
-            &Action::Put(
+            &Action::Special(
                 card,
                 CardPosition {
                     x: 1,
                     y: 1,
                     rotation: Rotation::Right,
-                    special: true
                 }
             )
         ));
@@ -751,13 +737,12 @@ pub mod tests {
         assert!(is_valid_action(
             &state,
             PlayerId::Player,
-            &Action::Put(
+            &Action::Special(
                 card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
                     rotation: Rotation::Right,
-                    special: true
                 }
             )
         ));
@@ -778,13 +763,12 @@ pub mod tests {
         assert!(!is_valid_action(
             &state,
             PlayerId::Player,
-            &Action::Put(
+            &Action::Special(
                 card,
                 CardPosition {
                     x: 1,
                     y: 1,
                     rotation: Rotation::Right,
-                    special: true
                 }
             )
         ));
@@ -821,7 +805,6 @@ pub mod tests {
                     x: 2,
                     y: 1,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
             &Action::Put(
@@ -830,7 +813,6 @@ pub mod tests {
                     x: 4,
                     y: 1,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
         );
@@ -883,7 +865,6 @@ pub mod tests {
                     x: 1,
                     y: 2,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
             &Action::Put(
@@ -892,7 +873,6 @@ pub mod tests {
                     x: 3,
                     y: 2,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
         );
@@ -950,7 +930,6 @@ pub mod tests {
                     x: 1,
                     y: 2,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
             &Action::Put(
@@ -959,7 +938,6 @@ pub mod tests {
                     x: 3,
                     y: 2,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
         );
@@ -1018,7 +996,6 @@ pub mod tests {
                     x: 1,
                     y: 2,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
             &Action::Put(
@@ -1027,7 +1004,6 @@ pub mod tests {
                     x: 3,
                     y: 2,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
         );
@@ -1081,16 +1057,14 @@ pub mod tests {
                     x: 1,
                     y: 2,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
-            &Action::Put(
+            &Action::Special(
                 card,
                 CardPosition {
                     x: 3,
                     y: 2,
                     rotation: Rotation::Up,
-                    special: true,
                 },
             ),
         );
@@ -1145,7 +1119,6 @@ pub mod tests {
                     x: 1,
                     y: 2,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
             &Action::Pass(card),
@@ -1204,7 +1177,6 @@ pub mod tests {
                     x: 2,
                     y: 1,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
             &Action::Pass(card),
@@ -1268,7 +1240,6 @@ pub mod tests {
                     x: 4,
                     y: 1,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
             &Action::Put(
@@ -1277,7 +1248,6 @@ pub mod tests {
                     x: 4,
                     y: 1,
                     rotation: Rotation::Up,
-                    special: false,
                 },
             ),
         );

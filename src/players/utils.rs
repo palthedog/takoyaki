@@ -20,17 +20,22 @@ pub fn append_valid_actions(
             let card_height = card.calculate_height(rotation);
             for y in 1..height - card_height {
                 for x in 1..width - card_width {
-                    for special in [false, true] {
-                        let pos = CardPosition {
-                            x,
-                            y,
-                            rotation,
-                            special,
-                        };
-                        let action = Action::Put(card.clone(), pos);
-                        if state::is_valid_action(state, player_id, &action) {
-                            actions.push(action);
-                        }
+                    let pos = CardPosition {
+                        x,
+                        y,
+                        rotation,
+                    };
+
+                    // Normal
+                    let action = Action::Put(card.clone(), pos);
+                    if state::is_valid_action(state, player_id, &action) {
+                        actions.push(action);
+                    }
+
+                    // Special
+                    let action = Action::Special(card.clone(), pos);
+                    if state::is_valid_action(state, player_id, &action) {
+                        actions.push(action);
                     }
                 }
             }

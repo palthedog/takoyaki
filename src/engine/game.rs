@@ -69,6 +69,7 @@ impl Display for Rotation {
 pub enum Action {
     Pass(Card),
     Put(Card, CardPosition),
+    Special(Card, CardPosition),
 }
 
 impl Action {
@@ -76,13 +77,15 @@ impl Action {
         match self {
             Action::Pass(c) => c,
             Action::Put(c, _) => c,
+            Action::Special(c, _) => c,
         }
     }
 
-    pub fn get_card_card_position(&self) -> (&Card, &CardPosition) {
+    pub fn get_card_and_position(&self) -> (&Card, &CardPosition) {
         match self {
             Action::Pass(_) => panic!("Tried to get CardPosition from Action::Pass"),
             Action::Put(c, card_position) => (c, card_position),
+            Action::Special(c, card_position) => (c, card_position),
         }
     }
 
@@ -90,9 +93,11 @@ impl Action {
         matches!(self, Action::Pass(_))
     }
 
+/*
     pub fn is_put(&self) -> bool {
         matches!(self, Action::Put(_, _))
     }
+*/
 }
 
 impl Display for Action {
@@ -102,11 +107,10 @@ impl Display for Action {
                 write!(f, "Pass({})", card.get_name())?;
             }
             Action::Put(card, card_position) => {
-                if card_position.special {
-                    write!(f, "Special!({}) @ {}", card.get_name(), card_position)?;
-                } else {
-                    write!(f, "Put({}) @ {}", card.get_name(), card_position)?;
-                }
+                write!(f, "Put({}) @ {}", card.get_name(), card_position)?;
+            }
+            Action::Special(card, card_position) => {
+                write!(f, "Special!({}) @ {}", card.get_name(), card_position)?;
             }
         }
         Ok(())

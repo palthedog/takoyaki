@@ -17,6 +17,8 @@ pub enum TakoyakiRequest {
     JoinGame(JoinGameRequest),
 
     AcceptHands(AcceptHandsRequest),
+
+    SelectAction(SelectActionRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -29,6 +31,8 @@ pub enum TakoyakiResponse {
     JoinGame(JoinGameResponse),
 
     AcceptHands(AcceptHandsResponse),
+
+    SelectAction(SelectActionResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -77,6 +81,16 @@ pub struct AcceptHandsRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct AcceptHandsResponse {
     pub initial_hands: Vec<CardId>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct SelectActionRequest {
+    
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct SelectActionResponse {
+    
 }
 
 #[cfg(test)]

@@ -399,15 +399,14 @@ pub struct CardPosition {
     pub x: i32,
     pub y: i32,
     pub rotation: Rotation,
-    pub special: bool,
 }
 
 impl Display for CardPosition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[p: [{},{}], r: {}, s: {}]",
-            self.x, self.y, self.rotation, self.special
+            "[p: [{},{}], r: {}]",
+            self.x, self.y, self.rotation
         )
     }
 }

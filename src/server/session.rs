@@ -11,7 +11,7 @@ use tokio::time::timeout;
 
 use crate::engine::board::Board;
 
-use crate::engine::game;
+use crate::engine::game::{self, Action};
 use crate::engine::state::{PlayerCardState, State};
 use crate::proto::{self, *};
 
@@ -124,6 +124,11 @@ impl GameSession {
             context.get_cards(hand_ids),
             context.get_cards(deck_ids),
         ))
+    }
+    
+    async fn get_action(state: &State, client: &mut ClientConnection) -> Result<Action, Error> {
+        
+        todo!()
     }
 }
 

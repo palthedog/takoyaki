@@ -130,3 +130,47 @@ pub enum PlayerId {
     Sourth = 1,
     North = -1,
 }
+
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Action {
+    Pass(CardId),
+    Put(CardId),
+    Special(CardId),
+}
+
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq)]
+pub struct CardPosition {
+    pub x: u32,
+    pub y: u32,
+    pub rotation: Rotation,
+}
+
+/*
+impl From<&crate::engine::card::CardPosition> for CardPosition {
+    fn from(_: &crate::engine::card::CardPosition) -> Self {
+        
+    }
+}
+*/
+
+#[derive(Serialize_repr, Deserialize_repr, Debug, Copy, Clone, PartialEq, Eq)]
+#[repr(i8)]
+pub enum Rotation {
+    Up,
+    Right,
+    Down,
+    Left,
+}
+
+/*
+impl From<&crate::engine::card::Rotation> for CardRotation {
+    fn from(r: &crate::engine::card::Rotation) -> Self {
+        match r {
+            crate::engine::game::Rotation::Up => Rotation::Up,
+            crate::engine::game::Rotation::Right =>Rotation::Right, 
+            crate::engine::game::Rotation::Down => Rotation::Down,
+            crate::engine::game::Rotation::Left => Rotation::Left,
+        }
+    }
+}
+*/
