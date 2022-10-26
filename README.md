@@ -6,16 +6,17 @@ The current goals of this project are:
  - web UIs
 
 ## How to build your deck with Takoyaki?
-List IDs of cards which you already have in `data/deck/mine` or somewhere else.
+Takoyaki can run simulated battles to build (possibly) stronger deck for you.
+First of all, update `data/deck/mine` to list up all card IDs which you already have in Splatoon3.
 Then, run 'train-deck' command:
 ```
 RUST_LOG=info cargo run --bin takoyaki --release -- train-deck --max-generation=1000 --battles-per-epoch=10 --population-size=30 --elite-count=10 -i data/decks/mine
 ```
-The command can produce decks storonger than the starter deck on random plays (>80% win rate).
+Then, Takoyaki continuously run simulated battles and show you candidates of deck.
+Note that Takoyaki only uses cards listed in `data/deck/mine` so that you can use the deck in your actual splatoon account.
 
 ## How to run battles?
-Currently, Takoyaki doesn't support playing games against AIs. Instead, you can watch AI v.s. AI battles.
-You can run a following command to see a battle:
+You can run a following command to see a battle (AI v.s. AI):
 ```
 cargo run --bin takoyaki --release -- --step-execution --player=random --opponent=mcts-1000 play --play-cnt=1 --player-deck-path=data/decks/starter  --opponent-deck-path=data/decks/starter
 ```
