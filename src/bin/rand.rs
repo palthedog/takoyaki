@@ -47,7 +47,7 @@ fn main() {
     let deck: Arc<Vec<Card>> = Arc::new(context.get_cards(&deck_ids));
 
     let mut client: Client<RandomPlayer> = Client::new(
-        context.clone(),
+        context,
         Format::Json,
         RandomPlayer::new(42),
         Box::new(move |games: &[GameInfo]| {

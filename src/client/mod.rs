@@ -1,10 +1,10 @@
-use log::info;
+
 use tokio::net::TcpStream;
 
 use paste::paste;
 
 use crate::{
-    players::Player, proto::*, engine::{game::Context, card::{Card, self}}, server::{connection::Connection, AContext},
+    players::Player, proto::*, engine::{card::{Card, self}}, server::{connection::Connection, AContext},
 };
 
 pub struct Client<P: Player> {
@@ -87,7 +87,7 @@ impl <'p, P: Player> Session<'p, P> {
 
         let hands = self.client.context.get_cards(&join_game.initial_hands);
         let need_redeal = self.client.player.need_redeal_hands(&hands);
-        let accept_hands_res = self.send_accept_hands(AcceptHandsRequest { accept: !need_redeal }).await?;
+        let _accept_hands_res = self.send_accept_hands(AcceptHandsRequest { accept: !need_redeal }).await?;
         
         todo!("Handle accept hands");
     }

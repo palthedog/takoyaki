@@ -462,7 +462,7 @@ impl Traverser {
                 NodeAction::PlayerAction(player_id, action) => determinization
                     .get_cards(*player_id)
                     .get_hands()
-                    .contains(&action.get_consumed_card()),
+                    .contains(action.get_consumed_card()),
                 NodeAction::ChanceAction(_) => todo!(),
                 NodeAction::Root => {
                     panic!("There shouldn't be a child node with a Root action")
@@ -576,7 +576,7 @@ impl Traverser {
     fn determinize_my_deck(&mut self, state: &State, hands: &[Card]) -> PlayerCardState {
         let mut deck_cards = self.my_initial_deck.clone();
 
-        let hand_ids: Vec<u32> = card::to_ids(&hands);
+        let hand_ids: Vec<u32> = card::to_ids(hands);
         Self::filter_cards(&mut deck_cards, &hand_ids);
 
         Self::filter_cards(&mut deck_cards, state.get_consumed_cards(self.player_id));
@@ -660,20 +660,19 @@ mod tests {
         });
         const SEED: u64 = 42;
         let sorted_cards = context
-            .clone()
             .all_cards
             .values()
             .cloned()
             .sorted_by(|a, b| a.get_id().cmp(&b.get_id()))
             .collect_vec();
         let player_initial_deck = sorted_cards.clone();
-        let opponent_initial_deck = sorted_cards.clone();
+        let opponent_initial_deck = sorted_cards;
 
         let (player_hands, player_deck) = player_initial_deck.split_at(game::HAND_SIZE);
         let (opponent_hands, opponent_deck) = opponent_initial_deck.split_at(game::HAND_SIZE);
 
         let player_initial_deck = context.all_cards.values().cloned().collect_vec();
-        let mut traverser = Traverser::new(context.clone(), PlayerId::Player, player_initial_deck, SEED);
+        let mut traverser = Traverser::new(context, PlayerId::Player, player_initial_deck, SEED);
 
         let state = State::new(board, 0, 0, 0, vec![], vec![]);
         let mut root_node = traverser.create_root_node(&state);

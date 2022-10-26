@@ -10,9 +10,9 @@ use tokio::sync::mpsc::Sender;
 use tokio::time::timeout;
 
 use crate::engine::board::Board;
-use crate::engine::card::Card;
-use crate::engine::game::{self, Context};
-use crate::engine::state::{PlayerCardState, State, self};
+
+use crate::engine::game::{self};
+use crate::engine::state::{PlayerCardState, State};
 use crate::proto::{self, *};
 
 use super::AContext;
@@ -30,7 +30,7 @@ pub struct GameSession {
 }
 
 impl GameSession {
-    pub fn new(context: AContext, board: Arc<Board>, mut client_south: ClientConnection, mut client_north: ClientConnection, rng: Mt64) -> Self {
+    pub fn new(context: AContext, board: Arc<Board>, mut client_south: ClientConnection, mut client_north: ClientConnection, _rng: Mt64) -> Self {
         client_south.set_player_id(PlayerId::Sourth);
         client_north.set_player_id(PlayerId::North);
         Self {
@@ -42,35 +42,35 @@ impl GameSession {
         }
     }
 
-    pub async fn start(self: &Self) -> Result<(), Error>{
+    pub async fn start(&self) -> Result<(), Error>{
         info!("New game session is started.");
 
         let board = self.board.clone();
-        let mut south = self.client_south.clone();
+        let south = self.client_south.clone();
         let context = self.context.clone();
         let psh = tokio::spawn(async move {
             Self::init_player(context, board, south).await
         });
 
         let board = self.board.clone();
-        let mut north = self.client_north.clone();
+        let north = self.client_north.clone();
         let context = self.context.clone();
         let pnh = tokio::spawn(async move {
             Self::init_player(context, board, north).await
         });
 
-        let mut north_state: PlayerCardState = match pnh.await {
+        let north_state: PlayerCardState = match pnh.await {
             Ok(Ok(v)) => v,
             _ => todo!(),
         };
-        let mut south_state: PlayerCardState = match psh.await {
+        let south_state: PlayerCardState = match psh.await {
             Ok(Ok(v)) => v,
             _ => todo!(),
         };
 
         info!("Player state: {}, {}", north_state, south_state);
-        let mut state = State::new((*self.board).clone(), 0, 0, 0, vec![], vec![]);
-        for turn in 0..game::TURN_COUNT {
+        let _state = State::new((*self.board).clone(), 0, 0, 0, vec![], vec![]);
+        for _turn in 0..game::TURN_COUNT {
             /*
             state::update_state(&mut state, &player_action, &opponent_action);
             state::update_player_state(&mut player_state, &player_action);
