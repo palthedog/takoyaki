@@ -38,11 +38,11 @@ pub struct PlayArgs {
     opponent_deck_path: PathBuf,
 }
 
-pub fn run_rand<'c>(
-    context: &'c Context,
+pub fn run_rand(
+    context: &Context,
     board: &Board,
-    player: &mut dyn Player<'c>,
-    opponent: &mut dyn Player<'c>,
+    player: &mut dyn Player,
+    opponent: &mut dyn Player,
     args: PlayArgs,
 ) {
     let play_cnt: u32 = args.play_cnt;
@@ -52,11 +52,11 @@ pub fn run_rand<'c>(
     // Use fixed seed for reproducible results.
     let mut rng = Mt64::new(0x42);
 
-    let mut player_inventory_cards: Vec<&Card> =
-        card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(&player_deck_path));
-    let mut opponent_inventory_cards: Vec<&Card> =
-        card::card_ids_to_card_refs(&context.all_cards, &card::load_deck(&opponent_deck_path));
-
+    let mut player_inventory_cards: Vec<Card> =
+        context.get_cards(&card::load_deck(&player_deck_path));
+    let mut opponent_inventory_cards: Vec<Card> =
+        context.get_cards(&card::load_deck(&opponent_deck_path));
+    
     let mut player_won_cnt = 0;
     let mut opponent_won_cnt = 0;
     let mut draw_cnt = 0;

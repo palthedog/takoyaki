@@ -14,10 +14,14 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn card_ref(&self, card_id: u32) -> &Card {
+    pub fn get_card(&self, card_id: u32) -> Card {
         self.all_cards.get(&card_id).unwrap_or_else(||{
             panic!("Unknown card ID: {}", card_id);
-        })
+        }).clone()
+    }
+
+    pub fn get_cards(&self, ids: &[u32]) -> Vec<Card> {
+        ids.iter().map(|id| self.get_card(*id)).collect()
     }
 }
 
@@ -61,14 +65,14 @@ impl Display for Rotation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Action<'c> {
-    Pass(&'c Card),
-    Put(&'c Card, CardPosition),
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Action {
+    Pass(Card),
+    Put(Card, CardPosition),
 }
 
-impl<'a> Action<'a> {
-    pub fn get_consumed_card(&self) -> &'a Card {
+impl Action {
+    pub fn get_consumed_card(&self) -> &Card {
         match self {
             Action::Pass(c) => c,
             Action::Put(c, _) => c,
@@ -91,7 +95,7 @@ impl<'a> Action<'a> {
     }
 }
 
-impl<'a> Display for Action<'a> {
+impl Display for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Action::Pass(card) => {

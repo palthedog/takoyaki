@@ -60,6 +60,19 @@ pub struct GameInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct PlayerState {
+    pub hands: Vec<CardId>,
+}
+
+impl From<&crate::engine::state::PlayerCardState> for PlayerState {
+    fn from(s: &crate::engine::state::PlayerCardState) -> Self {
+        PlayerState {
+            hands: crate::engine::card::to_ids(s.get_hands())
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Board {
     pub name: String,
     pub cells: Vec<Vec<BoardCell>>,
@@ -85,7 +98,7 @@ impl From<&crate::engine::board::Board> for Board {
 
 /// An enum reprecents each cell on a board.
 /// We do NOT use enum with fields (e.g. Ink(PlayerId)) to keep the serialized data small.
-#[derive(Serialize_repr, Deserialize_repr, Debug, PartialEq, Eq)]
+#[derive(Serialize_repr, Deserialize_repr, Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(i8)]
 pub enum BoardCell {
     None = 0,
@@ -111,7 +124,7 @@ impl From<crate::engine::board::BoardCell> for BoardCell {
     }
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, PartialEq, Eq)]
+#[derive(Serialize_repr, Deserialize_repr, Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(i8)]
 pub enum PlayerId {
     Sourth = 1,

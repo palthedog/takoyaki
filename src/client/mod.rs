@@ -4,24 +4,24 @@ use tokio::net::TcpStream;
 use paste::paste;
 
 use crate::{
-    players::Player, proto::*, engine::{game::Context, card::Card}, server::connection::Connection,
+    players::Player, proto::*, engine::{game::Context, card::{Card, self}}, server::{connection::Connection, AContext},
 };
 
-pub struct Client<'c, P: Player<'c>> {
-    context: &'c Context,
+pub struct Client<P: Player> {
+    context: AContext,
     preferred_format: Format,
     player: P,
-    game_picker: Box<dyn Fn(&[GameInfo]) -> (GameId, Vec<&'c Card>)>,
+    game_picker: Box<dyn Fn(&[GameInfo]) -> (GameId, Vec<Card>)>,
 }
 
-struct Session<'p, 'c: 'p, P: Player<'c>> {
-    client: &'p Client<'c, P>,
+struct Session<'p, P: Player> {
+    client: &'p mut Client<P>,
     connection: Connection,
 }
 
-impl<'c,  P: Player<'c>> Client<'c, P> {
-    pub fn new(context: &'c Context, preferred_format: Format, player: P,
-               game_picker: Box<dyn Fn(&[GameInfo]) -> (GameId, Vec<&'c Card>)>
+impl<P: Player> Client<P> {
+    pub fn new(context: AContext, preferred_format: Format, player: P,
+               game_picker: Box<dyn Fn(&[GameInfo]) -> (GameId, Vec<Card>)>
     )-> Self {
         Self {
             context,
@@ -31,7 +31,7 @@ impl<'c,  P: Player<'c>> Client<'c, P> {
         }
     }
 
-    pub fn join_game(&self, host: &str) -> Result<GameResult, String> {
+    pub fn join_game(&mut self, host: &str) -> Result<GameResult, String> {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
             let mut session =  self.join_game_async(host).await?;
@@ -39,7 +39,7 @@ impl<'c,  P: Player<'c>> Client<'c, P> {
         })
     }
 
-    pub async fn join_game_async<'p>(&'p self, host: &str) -> Result<Session<'p, 'c, P>, String> {
+    pub async fn join_game_async<'p>(&'p mut self, host: &str) -> Result<Session<'p, P>, String> {
         let stream = TcpStream::connect(host).await;
         let stream = match stream {
             Ok(v) => v,
@@ -64,7 +64,7 @@ macro_rules! def_rpc {
                 let res: [<$root Response>] = match self.connection.recv().await {
                     Ok(TakoyakiResponse::$root(v)) => v,
                     Ok(v) => {
-                        return Err(format!("Recv unexpected message: Expected {} but: {:?}", stringify!(root), v));
+                        return Err(format!("Recv unexpected message: Expected {} but: {:?}", stringify!($root), v));
                     },
                     Err(e) => {
                         return Err(format!("Recv RPC error: {:?}", e));
@@ -76,16 +76,20 @@ macro_rules! def_rpc {
     }
 }
 
-impl <'p, 'c, P: Player<'c>> Session<'p, 'c, P> {
+impl <'p, P: Player> Session<'p, P> {
     async fn start(&mut self) -> Result<GameResult, String> {
         let game_list = self.manmenmi().await?;
         let (game_id, deck) = (*self.client.game_picker)(&game_list);
-        self.send_join_game(JoinGameRequest {
+        let join_game = self.send_join_game(JoinGameRequest {
             game_id,
-            deck: deck.iter().map(|c|c.get_id() as CardId).collect(),
+            deck: card::to_ids(&deck),
         }).await?;
 
-        todo!("Implement deal hands");
+        let hands = self.client.context.get_cards(&join_game.initial_hands);
+        let need_redeal = self.client.player.need_redeal_hands(&hands);
+        let accept_hands_res = self.send_accept_hands(AcceptHandsRequest { accept: !need_redeal }).await?;
+        
+        todo!("Handle accept hands");
     }
 
     async fn manmenmi(&mut self) -> Result<Vec<GameInfo>, String>{
@@ -109,4 +113,5 @@ impl <'p, 'c, P: Player<'c>> Session<'p, 'c, P> {
     // Following macros generate methods named line `send_manmenmi` or `send_join_game`
     def_rpc!(Manmenmi);
     def_rpc!(JoinGame);
+    def_rpc!(AcceptHands);
 }

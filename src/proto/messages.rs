@@ -15,6 +15,8 @@ pub enum TakoyakiRequest {
     Manmenmi(ManmenmiRequest),
 
     JoinGame(JoinGameRequest),
+
+    AcceptHands(AcceptHandsRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -25,6 +27,8 @@ pub enum TakoyakiResponse {
     Manmenmi(ManmenmiResponse),
 
     JoinGame(JoinGameResponse),
+
+    AcceptHands(AcceptHandsResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -61,8 +65,8 @@ pub struct JoinGameRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct JoinGameResponse {
-    player_id: PlayerId,
-    initial_hands: Vec<CardId>,
+    pub player_id: PlayerId,
+    pub initial_hands: Vec<CardId>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -72,7 +76,7 @@ pub struct AcceptHandsRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct AcceptHandsResponse {
-    // OK
+    pub initial_hands: Vec<CardId>,
 }
 
 #[cfg(test)]

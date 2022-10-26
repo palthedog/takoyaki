@@ -9,14 +9,14 @@ use crate::engine::{
 };
 
 /// The base class for all player implementations.
-pub trait Player<'c> {
+pub trait Player {
     fn get_name(&self) -> &str;
-    fn init_game(&mut self, player_id: PlayerId, context: &'c Context, deck: Vec<&'c Card>);
+    fn init_game(&mut self, player_id: PlayerId, context: &Context, deck: Vec<Card>);
 
     /// It will be called once before the first action.
-    fn need_redeal_hands(&mut self, dealed_cards: &[&'c Card]) -> bool;
+    fn need_redeal_hands(&mut self, dealed_cards: &[Card]) -> bool;
 
-    fn get_action(&mut self, state: &State, hands: &[&'c Card]) -> Action<'c>;
+    fn get_action(&mut self, state: &State, hands: &[Card]) -> Action;
 }
 
 #[derive(Clone, Debug)]
@@ -53,7 +53,7 @@ impl clap::ArgEnum for PlayerType {
 }
 
 impl PlayerType {
-    pub fn create_player<'c>(&self, _context: &'c Context, seed: u64) -> Box<dyn Player<'c> + 'c> {
+    pub fn create_player<'c>(&self, _context: &Context, seed: u64) -> Box<dyn Player> {
         match self {
             PlayerType::Random => Box::new(random::RandomPlayer::new(seed)),
             PlayerType::Mcts { iterations } => Box::new(mcts::MctsPlayer::new(seed, *iterations)),

@@ -13,11 +13,11 @@ use crate::{
     players::*,
 };
 
-pub fn deal_hands<'c>(
+pub fn deal_hands(
     rng: &mut Mt64,
-    deck: &[&'c Card],
-    player: &mut dyn Player<'c>,
-) -> PlayerCardState<'c> {
+    deck: &[Card],
+    player: &mut dyn Player,
+) -> PlayerCardState {
     let mut deck = deck.to_vec();
     debug!(
         "Deck: {:#?}",
@@ -38,13 +38,13 @@ pub fn deal_hands<'c>(
     )
 }
 
-pub fn run<'c>(
-    context: &'c Context,
+pub fn run(
+    context: &Context,
     board: &Board,
-    player_deck: &[&'c Card],
-    opponent_deck: &[&'c Card],
-    player: &mut dyn Player<'c>,
-    opponent: &mut dyn Player<'c>,
+    player_deck: &[Card],
+    opponent_deck: &[Card],
+    player: &mut dyn Player,
+    opponent: &mut dyn Player,
     rng: &mut Mt64,
 ) -> (i32, i32) {
     assert_eq!(game::DECK_SIZE, player_deck.len());

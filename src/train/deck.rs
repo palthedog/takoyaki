@@ -74,23 +74,23 @@ pub struct TrainDeckArgs {
 }
 
 #[derive(Debug)]
-struct Report<'a, 'b> {
-    deck: &'b [&'a Card],
+struct Report<'b> {
+    deck: &'b [Card],
     win_cnt: u32,
 }
 
-impl<'a, 'b> Report<'a, 'b> {
+impl<'b> Report<'b> {
     fn get_weight(&self) -> u32 {
         self.win_cnt
     }
 }
 
-impl<'a, 'b> Display for Report<'a, 'b> {
+impl<'b> Display for Report<'b> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "deck: {}, win: {}",
-            Card::format_cards(self.deck),
+            card::format_cards(self.deck),
             self.win_cnt
         )
     }
@@ -101,7 +101,7 @@ struct TrainDeck<'a> {
     context: &'a Context,
     board: Board,
     args: TrainDeckArgs,
-    inventory_cards: HashMap<u32, &'a Card>,
+    inventory_cards: HashMap<u32, Card>,
 }
 
 impl<'c> TrainDeck<'c> {
@@ -109,7 +109,7 @@ impl<'c> TrainDeck<'c> {
         context: &'c Context,
         board: Board,
         args: TrainDeckArgs,
-        inventory_cards: HashMap<u32, &'c Card>,
+        inventory_cards: HashMap<u32, Card>,
     ) -> TrainDeck<'c> {
         TrainDeck {
             rng: Mt64::new(42),
@@ -123,10 +123,10 @@ impl<'c> TrainDeck<'c> {
     fn run_battles(
         &mut self,
         battle_count: usize,
-        player_deck: &[&'c Card],
-        opponent_deck: &[&'c Card],
-        player: &mut dyn Player<'c>,
-        opponent: &mut dyn Player<'c>,
+        player_deck: &[Card],
+        opponent_deck: &[Card],
+        player: &mut dyn Player,
+        opponent: &mut dyn Player,
     ) -> (u32, u32, u32) {
         let mut player_won_cnt = 0;
         let mut opponent_won_cnt = 0;
@@ -162,11 +162,11 @@ impl<'c> TrainDeck<'c> {
 
     fn evaluate_population<'b>(
         &mut self,
-        population: &'b [Vec<&'c Card>],
-        opponent_deck: &'b [&'c Card],
-        player: &mut dyn Player<'c>,
-        opponent: &mut dyn Player<'c>,
-    ) -> Vec<Report<'c, 'b>> {
+        population: &'b [Vec<Card>],
+        opponent_deck: &'b [Card],
+        player: &mut dyn Player,
+        opponent: &mut dyn Player,
+    ) -> Vec<Report<'b>> {
         // key: variation_index
         // value: won count
         let mut won_cnts: HashMap<usize, u32> = HashMap::new();
@@ -190,13 +190,13 @@ impl<'c> TrainDeck<'c> {
             .collect()
     }
 
-    fn create_initial_population(&mut self) -> Vec<Vec<&'c Card>> {
-        let mut population: Vec<Vec<&Card>> = vec![];
+    fn create_initial_population(&mut self) -> Vec<Vec<Card>> {
+        let mut population: Vec<Vec<Card>> = vec![];
         for _ in 0..self.args.population_size {
-            let mut deck: Vec<&Card> = self
+            let mut deck: Vec<Card> = self
                 .inventory_cards
                 .values()
-                .copied()
+                .cloned()
                 .choose_multiple(&mut self.rng, game::DECK_SIZE);
             deck.sort();
             population.push(deck);
@@ -204,7 +204,7 @@ impl<'c> TrainDeck<'c> {
         population
     }
 
-    fn crossover<'b>(&mut self, a: &Report<'c, 'b>, b: &Report<'c, 'b>) -> Vec<&'c Card> {
+    fn crossover<'b>(&mut self, a: &Report<'b>, b: &Report<'b>) -> Vec<Card> {
         // key: card id
         // value: weight
         let mut card_weights: HashMap<u32, u32> = HashMap::new();
@@ -225,17 +225,17 @@ impl<'c> TrainDeck<'c> {
 
         let mut card_weights: Vec<(u32, u32)> =
             card_weights.iter().map(|(k, v)| (*k, *v)).collect();
-        let mut new_deck: Vec<&Card> = vec![];
+        let mut new_deck: Vec<Card> = vec![];
         (0..game::DECK_SIZE).for_each(|_| {
             let dist = WeightedIndex::new(card_weights.iter().map(|e| e.1)).unwrap();
             let index: usize = dist.sample(&mut self.rng);
             let (selected_card_id, _weight) = card_weights.remove(index);
-            new_deck.push(self.inventory_cards[&selected_card_id]);
+            new_deck.push(self.inventory_cards[&selected_card_id].clone());
         });
         new_deck
     }
 
-    fn mutation(&mut self, deck: &mut [&'c Card]) {
+    fn mutation(&mut self, deck: &mut [Card]) {
         let mut pool: HashSet<u32> = HashSet::new();
         self.inventory_cards.keys().for_each(|card_id| {
             pool.insert(*card_id);
@@ -250,41 +250,41 @@ impl<'c> TrainDeck<'c> {
         let mut mutated = false;
         (0..deck.len()).for_each(|i| {
             if self.rng.gen_bool(self.args.mutation_rate) {
-                let removing = deck[i];
+                let removing = &deck[i];
                 let replacing_id: u32 = *pool.iter().choose(&mut self.rng).unwrap();
 
                 pool.insert(removing.get_id());
                 pool.remove(&replacing_id);
-                debug!("swapping: from:{} to:{}", removing.get_id(), replacing_id);
+                debug!("swapping: from:{} to:{}", removing.get_id(), &replacing_id);
 
-                deck[i] = self.inventory_cards[&replacing_id];
+                deck[i] = self.inventory_cards[&replacing_id].clone();
                 mutated = true;
             }
         });
-        Card::sort_by_id(deck);
+        card::sort_by_id(deck);
         if mutated {
             debug!("Mutated");
-            debug!("    {}", Card::format_cards(deck));
+            debug!("    {}", card::format_cards(deck));
         }
     }
 
-    fn create_next_generation<'b>(&mut self, reports: &mut [Report<'c, 'b>]) -> Vec<Vec<&'c Card>> {
+    fn create_next_generation<'b>(&mut self, reports: &mut [Report<'b>]) -> Vec<Vec<Card>> {
         assert_eq!(self.args.population_size, reports.len());
 
         reports.sort_by(|a, b| b.win_cnt.cmp(&a.win_cnt));
         if log_enabled!(log::Level::Debug) {
             debug!("League result:");
             reports.iter().for_each(|r| {
-                debug!("  win: {}: {}", r.win_cnt, Card::format_cards(r.deck));
+                debug!("  win: {}: {}", r.win_cnt, card::format_cards(r.deck));
             });
         }
 
-        let mut next_gen: Vec<Vec<&'c Card>> = vec![];
+        let mut next_gen: Vec<Vec<Card>> = vec![];
 
         // Choose top elites as is.
         (0..self.args.elite_count).for_each(|i| {
             let mut deck = reports[i].deck.to_vec();
-            Card::sort_by_id(&mut deck);
+            card::sort_by_id(&mut deck);
             next_gen.push(deck);
         });
 
@@ -302,17 +302,17 @@ impl<'c> TrainDeck<'c> {
             debug!(
                 "    #{}: {}",
                 reports[a_index].win_cnt,
-                Card::format_cards(reports[a_index].deck),
+                card::format_cards(reports[a_index].deck),
             );
             debug!(
                 "    #{}: {}",
                 reports[b_index].win_cnt,
-                Card::format_cards(reports[b_index].deck),
+                card::format_cards(reports[b_index].deck),
             );
             let mut deck = self.crossover(&reports[a_index], &reports[b_index]);
-            Card::sort_by_id(&mut deck);
+            card::sort_by_id(&mut deck);
             debug!("Crossover result:");
-            debug!("    {}", Card::format_cards(&deck));
+            debug!("    {}", card::format_cards(&deck));
             self.mutation(&mut deck);
 
             next_gen.push(deck);
@@ -322,22 +322,20 @@ impl<'c> TrainDeck<'c> {
         next_gen
     }
 
-    fn run(&mut self, player: &mut dyn Player<'c>, opponent: &mut dyn Player<'c>) {
+    fn run(&mut self, player: &mut dyn Player, opponent: &mut dyn Player) {
         assert_le!(
             self.args.elite_count,
             self.args.population_size,
             "elite-count must be smaller than population-size"
         );
 
-        let validation_deck = card::card_ids_to_card_refs(
-            &self.context.all_cards,
-            &card::load_deck(&self.args.validation_deck_path),
-        );
+        let validation_deck = self.context.get_cards(
+            &card::load_deck(&self.args.validation_deck_path));
 
-        let loaded_evaluation_deck: Vec<&Card> = if let Some(eval_deck_path) =
+        let loaded_evaluation_deck: Vec<Card> = if let Some(eval_deck_path) =
             &self.args.evaluation_deck_path
         {
-            card::card_ids_to_card_refs(&self.context.all_cards, &card::load_deck(eval_deck_path))
+            self.context.get_cards(&card::load_deck(eval_deck_path))
         } else {
             // it's not used.
             vec![]
@@ -353,18 +351,18 @@ impl<'c> TrainDeck<'c> {
                 .iter()
                 .enumerate()
                 .take(self.args.elite_count)
-                .for_each(|(i, v)| info!("  {}: {}", i, Card::format_cards(v)));
+                .for_each(|(i, v)| info!("  {}: {}", i, card::format_cards(v)));
 
-            let evaluation_deck: &Vec<&Card> = if self.args.evaluation_deck_path.is_none() {
+            let evaluation_deck: &Vec<Card> = if self.args.evaluation_deck_path.is_none() {
                 info!(
                     "Opponent uses the best deck: {}",
-                    Card::format_cards(&population[0])
+                    card::format_cards(&population[0])
                 );
                 &population[0]
             } else {
                 info!(
                     "Opponent uses the loaded deck: {}",
-                    Card::format_cards(&loaded_evaluation_deck)
+                    card::format_cards(&loaded_evaluation_deck)
                 );
                 &loaded_evaluation_deck
             };
@@ -393,11 +391,14 @@ impl<'c> TrainDeck<'c> {
 pub fn train_deck<'p, 'c: 'p>(
     context: &'c Context,
     board: &Board,
-    player: &mut dyn Player<'c>,
-    opponent: &mut dyn Player<'c>,
+    player: &mut dyn Player,
+    opponent: &mut dyn Player,
     args: TrainDeckArgs,
 ) {
-    let inventory_cards =
-        card::card_ids_to_card_map(&context.all_cards, &card::load_deck(&args.inventory_path));
-    TrainDeck::new(context, board.clone(), args, inventory_cards).run(player, opponent);
+    let ids = card::load_deck(&args.inventory_path);
+    let card_map = ids
+        .iter()
+        .map(|id| (*id, context.get_card(*id)))
+        .collect();
+    TrainDeck::new(context, board.clone(), args, card_map).run(player, opponent);
 }

@@ -14,21 +14,21 @@ use super::{
 };
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct PlayerCardState<'c> {
-    hands: Vec<&'c Card>,
-    deck: Vec<&'c Card>,
+pub struct PlayerCardState {
+    hands: Vec<Card>,
+    deck: Vec<Card>,
 }
 
-impl<'a> PlayerCardState<'a> {
-    pub fn new(hands: Vec<&'a Card>, deck: Vec<&'a Card>) -> PlayerCardState<'a> {
+impl PlayerCardState {
+    pub fn new(hands: Vec<Card>, deck: Vec<Card>) -> PlayerCardState {
         PlayerCardState { hands, deck }
     }
 
-    pub fn get_hands(&self) -> &[&'a Card] {
+    pub fn get_hands(&self) -> &[Card] {
         &self.hands
     }
 
-    pub fn get_deck(&self) -> &[&'a Card] {
+    pub fn get_deck(&self) -> &[Card] {
         &self.deck
     }
 
@@ -56,7 +56,7 @@ impl<'a> PlayerCardState<'a> {
     }
 }
 
-impl<'a> Display for PlayerCardState<'a> {
+impl Display for PlayerCardState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Hands:[")?;
         for card in self.hands.iter() {
@@ -192,7 +192,7 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
 
     // Filling player's cell
     if let Action::Put(card, card_position) = player_action {
-        for (board_pos, &cell) in card.get_cells_on_board_coord(card_position) {
+        for (board_pos, cell) in card.get_cells_on_board_coord(card_position) {
             // Modify board
             let fill = cell.cell_type.to_board_cell(PlayerId::Player);
             state.board.put_cell(board_pos, fill);
@@ -202,7 +202,7 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
     }
 
     if let Action::Put(card, card_position) = opponent_action {
-        for (board_pos, &cell) in card.get_cells_on_board_coord(card_position) {
+        for (board_pos, cell) in card.get_cells_on_board_coord(card_position) {
             // Modify board
             let priority: i32 = *priorities
                 .get(&board_pos)
@@ -261,7 +261,7 @@ fn is_valid_action_put(
 
 fn has_conflict(board: &Board, card: &Card, card_position: &CardPosition) -> bool {
     let special = card_position.special;
-    for (board_pos, &_cell) in card.get_cells_on_board_coord(card_position) {
+    for (board_pos, _cell) in card.get_cells_on_board_coord(card_position) {
         let board_cell = board.get_cell(board_pos);
         let conflict = match (board_cell, special) {
             (BoardCell::None, _) => false,
@@ -290,7 +290,7 @@ fn has_touching_point(
         (-1,  1),  (0,  1),  (1,  1),
     ];
     let special = card_position.special;
-    for (board_pos, &_cell) in card.get_cells_on_board_coord(card_position) {
+    for (board_pos, _cell) in card.get_cells_on_board_coord(card_position) {
         for diff in AROUND_DIFF {
             let board_pos = BoardPosition {
                 x: board_pos.x + diff.0,
@@ -395,7 +395,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
@@ -410,7 +410,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 5,
                     y: 1,
@@ -425,7 +425,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 2,
                     y: 1,
@@ -453,7 +453,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card,
                 CardPosition {
                     x: 1,
                     y: 1,
@@ -482,7 +482,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
@@ -497,7 +497,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 3,
                     y: 1,
@@ -535,7 +535,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 5,
                     y: 4,
@@ -548,7 +548,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 3,
                     y: 5,
@@ -561,7 +561,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 3,
@@ -574,7 +574,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 4,
                     y: 1,
@@ -614,7 +614,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
@@ -644,7 +644,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
@@ -672,7 +672,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
@@ -685,7 +685,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
@@ -713,7 +713,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
@@ -752,7 +752,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
@@ -779,7 +779,7 @@ pub mod tests {
             &state,
             PlayerId::Player,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 1,
@@ -816,7 +816,7 @@ pub mod tests {
         update_state(
             &mut state,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 2,
                     y: 1,
@@ -825,7 +825,7 @@ pub mod tests {
                 },
             ),
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 4,
                     y: 1,
@@ -878,7 +878,7 @@ pub mod tests {
         update_state(
             &mut state,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 2,
@@ -887,7 +887,7 @@ pub mod tests {
                 },
             ),
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 3,
                     y: 2,
@@ -945,7 +945,7 @@ pub mod tests {
         update_state(
             &mut state,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 2,
@@ -954,7 +954,7 @@ pub mod tests {
                 },
             ),
             &Action::Put(
-                &card_large,
+                card_large,
                 CardPosition {
                     x: 3,
                     y: 2,
@@ -1013,7 +1013,7 @@ pub mod tests {
         update_state(
             &mut state,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 2,
@@ -1022,7 +1022,7 @@ pub mod tests {
                 },
             ),
             &Action::Put(
-                &card_large,
+                card_large.clone(),
                 CardPosition {
                     x: 3,
                     y: 2,
@@ -1076,7 +1076,7 @@ pub mod tests {
         update_state(
             &mut state,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 2,
@@ -1085,7 +1085,7 @@ pub mod tests {
                 },
             ),
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 3,
                     y: 2,
@@ -1140,7 +1140,7 @@ pub mod tests {
         update_state(
             &mut state,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 1,
                     y: 2,
@@ -1148,7 +1148,7 @@ pub mod tests {
                     special: false,
                 },
             ),
-            &Action::Pass(&card),
+            &Action::Pass(card),
         );
 
         // Opponent used special attack.
@@ -1199,7 +1199,7 @@ pub mod tests {
         update_state(
             &mut state,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 2,
                     y: 1,
@@ -1207,7 +1207,7 @@ pub mod tests {
                     special: false,
                 },
             ),
-            &Action::Pass(&card),
+            &Action::Pass(card.clone()),
         );
 
         // Opponent used special attack.
@@ -1263,7 +1263,7 @@ pub mod tests {
         update_state(
             &mut state,
             &Action::Put(
-                &card,
+                card.clone(),
                 CardPosition {
                     x: 4,
                     y: 1,
@@ -1272,7 +1272,7 @@ pub mod tests {
                 },
             ),
             &Action::Put(
-                &card2,
+                card2.clone(),
                 CardPosition {
                     x: 4,
                     y: 1,

@@ -112,7 +112,7 @@ impl Connection {
             }
         };
 
-        trace!("Serialized data: {:?}", serialized);
+        trace!("Send: Serialized data: {:?}", String::from_utf8_lossy(&serialized));
         if let Err(_e) = self.stream.get_mut().write_all(&serialized).await {
             return Err(Error{
                 code: ErrorCode::NetworkError,

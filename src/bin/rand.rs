@@ -1,7 +1,7 @@
 extern crate env_logger;
 extern crate log;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use takoyaki::{players::random::RandomPlayer, client::Client, proto::{Format, GameInfo}, engine::card::Card};
 
@@ -22,7 +22,7 @@ pub struct AppArgs {
         long,
         value_parser,
         value_hint=ValueHint::FilePath,
-        default_value = "data/deck/starter"
+        default_value = "data/decks/starter"
     )]
     deck_path: PathBuf,
 
@@ -39,21 +39,21 @@ fn main() {
     let args = AppArgs::parse();
 
     let all_cards = card::load_cards(&args.card_dir);
-    let context = Context {
+    let context = Arc::new(Context {
         all_cards,
         enabled_step_execution: false,
-    };
-    let deck = card::load_deck(&args.deck_path);
-    let deck: Vec<&Card> = card::card_ids_to_card_refs(&context.all_cards, &deck);
+    });
+    let deck_ids = card::load_deck(&args.deck_path);
+    let deck: Arc<Vec<Card>> = Arc::new(context.get_cards(&deck_ids));
 
-    let client: Client<RandomPlayer> = Client::new(
-        &context,
+    let mut client: Client<RandomPlayer> = Client::new(
+        context.clone(),
         Format::Json,
         RandomPlayer::new(42),
         Box::new(move |games: &[GameInfo]| {
             let game_id = games[0].game_id;
-            let deck = deck;
-            (game_id, deck)
+            let deck = deck.clone();
+            (game_id, deck.to_vec())
         })
     );
 

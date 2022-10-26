@@ -6,15 +6,15 @@ use crate::engine::{
     state::{self, State},
 };
 
-pub fn append_valid_actions<'c>(
+pub fn append_valid_actions(
     state: &State,
-    cards: &[&'c Card],
+    cards: &[Card],
     player_id: PlayerId,
-    actions: &mut Vec<Action<'c>>,
+    actions: &mut Vec<Action>,
 ) {
     let (width, height) = state.board.get_size();
     for card in cards {
-        actions.push(Action::Pass(card));
+        actions.push(Action::Pass(card.clone()));
         for rotation in Rotation::VALUES {
             let card_width = card.calculate_width(rotation);
             let card_height = card.calculate_height(rotation);
@@ -27,7 +27,7 @@ pub fn append_valid_actions<'c>(
                             rotation,
                             special,
                         };
-                        let action = Action::Put(card, pos);
+                        let action = Action::Put(card.clone(), pos);
                         if state::is_valid_action(state, player_id, &action) {
                             actions.push(action);
                         }

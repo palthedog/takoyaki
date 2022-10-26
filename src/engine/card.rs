@@ -4,7 +4,7 @@ use std::{
     fmt::{self, Display, Formatter},
     fs::{self, File},
     io::{BufRead, BufReader},
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}, sync::Arc,
 };
 
 use super::{
@@ -45,7 +45,7 @@ impl CardCell {
     ///   - Special block is more prioritized than normal ink.
     ///   - If same ink blocks conflict, a card with lower cost (number of cells) is prioritized.
     /// Note that special attack doesn't affect the priority.
-    fn calc_cell_priority(cell_type: &CardCellType, cell_count: i32) -> i32 {
+    fn calc_cell_priority(cell_type: CardCellType, cell_count: i32) -> i32 {
         match cell_type {
             CardCellType::None => panic!(),
             CardCellType::Ink => cell_count + 128,
@@ -83,8 +83,10 @@ impl CardCellType {
     }
 }
 
+pub type Card = Arc<CardImpl>;
+
 #[derive(Debug, Eq, Clone)]
-pub struct Card {
+pub struct CardImpl {
     id: u32,
     name: String,
     cell_count: i32,
@@ -92,7 +94,7 @@ pub struct Card {
     cells: HashMap<Rotation, HashMap<CardCellPosition, CardCell>>,
 }
 
-impl Card {
+impl CardImpl {
     pub fn get_id(&self) -> u32 {
         self.id
     }
@@ -111,16 +113,18 @@ impl Card {
 
     pub fn get_cells_on_board_coord<'a>(
         &'a self,
-        card_position: &'a CardPosition,
-    ) -> impl Iterator<Item = (BoardPosition, &'a CardCell)> + 'a {
+        card_position: &CardPosition,
+    ) -> impl Iterator<Item = (BoardPosition, CardCell)> + 'a{
         let cells = self.get_cells(card_position.rotation);
-        cells.values().map(|cell| {
+        let cx = card_position.x;
+        let cy = card_position.y;
+        cells.values().map(move |cell| {
             let cell_position = cell.position;
             let board_pos = BoardPosition {
-                x: card_position.x + cell_position.x,
-                y: card_position.y + cell_position.y,
+                x: cx + cell_position.x,
+                y: cy + cell_position.y,
             };
-            (board_pos, cell)
+            (board_pos, *cell)
         })
     }
 
@@ -141,24 +145,24 @@ impl Card {
         .unwrap();
         output
     }
-
-    pub fn sort_by_id(cards: &mut [&Card]) {
-        cards.sort_by(|a, b| a.id.cmp(&b.id));
-    }
-
-    pub fn format_cards(cards: &[&Card]) -> String {
-        let mut output = String::new();
-        output += "[";
-        for card in cards {
-            output += &card.fmt_short();
-            output += ",";
-        }
-        output += "]";
-        output
-    }
 }
 
-impl Display for Card {
+pub fn sort_by_id(cards: &mut [Card]) {
+    cards.sort_by(|a, b| a.id.cmp(&b.id));
+}
+
+pub fn format_cards(cards: &[Card]) -> String {
+    let mut output = String::new();
+    output += "[";
+    for card in cards {
+        output += &card.fmt_short();
+        output += ",";
+    }
+    output += "]";
+    output
+}
+
+impl Display for CardImpl {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         writeln!(f, "{}: {}", self.id, self.name)?;
         writeln!(f, "cnt: {} cost: {}", self.cell_count, self.special_cost)?;
@@ -181,28 +185,32 @@ impl Display for Card {
     }
 }
 
-impl Ord for Card {
+impl Ord for CardImpl {
     fn cmp(&self, other: &Self) -> Ordering {
         self.id.cmp(&other.id)
     }
 }
 
-impl PartialOrd for Card {
+impl PartialOrd for CardImpl {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for Card {
+impl PartialEq for CardImpl {
     fn eq(&self, other: &Self) -> bool {
         self.id.eq(&other.id)
     }
 }
 
-impl std::hash::Hash for Card {
+impl std::hash::Hash for CardImpl {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.id.hash(state);
     }
+}
+
+pub fn to_ids(cards: &[Card]) -> Vec<u32> {
+    cards.iter().map(|card| card.get_id()).collect()
 }
 
 pub fn load_cards(cards_dir: &str) -> HashMap<u32, Card> {
@@ -295,13 +303,13 @@ pub fn load_card_from_lines(
     }
     assert_eq!(4, cells_variations.len());
 
-    Card {
+    Card::new(CardImpl {
         id,
         name,
         cell_count,
         special_cost,
         cells: cells_variations,
-    }
+    })
 }
 
 fn convert_to_cell_map(cells: Vec<CardCell>) -> HashMap<CardCellPosition, CardCell> {
@@ -374,7 +382,7 @@ fn read_cells(cell_count: i32, lines: &[String]) -> Vec<CardCell> {
                 x: x as i32,
                 y: y as i32,
             };
-            let priority = CardCell::calc_cell_priority(&cell_type, cell_count);
+            let priority = CardCell::calc_cell_priority(cell_type, cell_count);
             card_cells.push(CardCell {
                 position,
                 cell_type,
@@ -402,26 +410,6 @@ impl Display for CardPosition {
             self.x, self.y, self.rotation, self.special
         )
     }
-}
-
-pub fn card_ids_to_card_refs<'a>(
-    all_cards: &'a HashMap<u32, Card>,
-    card_ids: &[u32],
-) -> Vec<&'a Card> {
-    card_ids
-        .iter()
-        .map(|id| all_cards.get(id).unwrap())
-        .collect()
-}
-
-pub fn card_ids_to_card_map<'a>(
-    all_cards: &'a HashMap<u32, Card>,
-    card_ids: &[u32],
-) -> HashMap<u32, &'a Card> {
-    card_ids
-        .iter()
-        .map(|id| (*id, all_cards.get(id).unwrap()))
-        .collect()
 }
 
 pub fn load_deck(deck_path: &PathBuf) -> Vec<u32> {
