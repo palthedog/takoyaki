@@ -315,8 +315,7 @@ fn has_touching_point(
 // tests can use them without making the `tests` mod public.
 #[cfg(test)]
 pub mod tests {
-    use super::*;
-    use crate::engine::{board, card, game::Rotation};
+    use crate::*;
 
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
@@ -340,11 +339,11 @@ pub mod tests {
         )
     }
 
-    pub fn new_test_board(lines: &[&str]) -> crate::engine::board::Board {
-        board::load_board_from_lines(String::from("test board"), lines)
+    pub fn new_test_board(lines: &[&str]) -> Board {
+        load_board_from_lines(String::from("test board"), lines)
     }
 
-    pub fn new_test_card(lines: &[&str]) -> crate::engine::card::Card {
+    pub fn new_test_card(lines: &[&str]) -> Card {
         // Using a huge special cost to prevent test codes accidentally
         // use a special attack.
         new_test_card_with_special_cost(lines, 42)
@@ -358,7 +357,7 @@ pub mod tests {
         lines: &[&str],
         id: u32,
         special_cost: i32,
-    ) -> crate::engine::card::Card {
+    ) -> Card {
         let lines: Vec<String> = lines.iter().map(|s| String::from(*s)).collect();
         let cell_cnt: i32 = lines
             .iter()

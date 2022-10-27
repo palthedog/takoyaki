@@ -590,11 +590,35 @@ impl Traverser {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, sync::Arc};
 
-    use crate::engine::{board, state};
+    use engine;
 
     use super::*;
+
+    pub fn new_test_card_impl(
+        lines: &[&str],
+        id: u32,
+        special_cost: i32,
+    ) -> Card {
+        let lines: Vec<String> = lines.iter().map(|s| String::from(*s)).collect();
+        let cell_cnt: i32 = lines
+            .iter()
+            .map(|line| {
+                line.as_bytes()
+                    .iter()
+                    .filter(|&ch| *ch == b'=' || *ch == b'*')
+                    .count() as i32
+            })
+            .sum();
+        engine::load_card_from_lines(
+            id,
+            String::from("test card"),
+            cell_cnt,
+            special_cost,
+            &lines,
+        )
+    }
 
     fn new_test_all_cards(card_strs: &[&[&str]]) -> HashMap<u32, Card> {
         let mut tmp: HashMap<u32, Card> = HashMap::new();
@@ -602,7 +626,7 @@ mod tests {
             const SPECIAL_COST: i32 = 10;
             tmp.insert(
                 i as u32,
-                state::tests::new_test_card_impl(s, i as u32, SPECIAL_COST),
+                new_test_card_impl(s, i as u32, SPECIAL_COST),
             );
         });
         tmp
@@ -642,7 +666,7 @@ mod tests {
             &["="],
         ]);
         #[rustfmt::skip]
-        let board = board::load_board_from_lines(
+        let board = engine::load_board_from_lines(
             String::from("test_board"),
             &[
             "#####",
@@ -664,11 +688,11 @@ mod tests {
         let player_initial_deck = sorted_cards.clone();
         let opponent_initial_deck = sorted_cards;
 
-        let (player_hands, player_deck) = player_initial_deck.split_at(game::HAND_SIZE);
-        let (opponent_hands, opponent_deck) = opponent_initial_deck.split_at(game::HAND_SIZE);
+        let (player_hands, player_deck) = player_initial_deck.split_at(engine::HAND_SIZE);
+        let (opponent_hands, opponent_deck) = opponent_initial_deck.split_at(engine::HAND_SIZE);
 
         let player_initial_deck = context.all_cards.values().cloned().collect_vec();
-        let mut traverser = Traverser::new(context, PlayerId::Player, player_initial_deck, SEED);
+        let mut traverser = Traverser::new(&context, PlayerId::Player, player_initial_deck, SEED);
 
         let state = State::new(board, 0, 0, 0, vec![], vec![]);
         let mut root_node = traverser.create_root_node(&state);
