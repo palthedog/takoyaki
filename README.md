@@ -156,6 +156,20 @@ You can choose one from;
 ## AI strength
 I don't know :) but `mcts-1000` seems to win almost all games against the `random` player.
 
+## Run server
+```
+cargo run -p server --release
+```
+
+### Run client
+```
+cargo run -p clients --release -- rand
+```
+
+```
+cargo run -p clients --release -- mcts -iterations 1000
+```
+
 # TODOs
 - Consider using a faster hasher for HashMap
 - Make the logic runs on multi threads
