@@ -42,6 +42,7 @@ enum Commands {
 
 #[derive(Args)]
 struct MctsArgs {
+    #[clap(long, short, value_parser)]
     iterations: usize
 }
 
