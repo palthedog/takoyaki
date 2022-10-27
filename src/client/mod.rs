@@ -1,3 +1,5 @@
+use std::{sync::Arc, fmt::{Display, Formatter}};
+
 use paste::paste;
 use tokio::net::TcpStream;
 
@@ -5,17 +7,39 @@ use log::*;
 
 use crate::{
     players::Player,
-    proto::*,
-    engine::{card::{Card, self}, state::{State, self}},
+    proto::{*, self},
+    engine::{card::{Card, self}, state::{State, self}, game::Context},
     server::{connection::Connection, AContext},
 };
 
+pub mod common;
+
 pub type GamePickerFn = Box<dyn Fn(&[GameInfo]) -> (GameId, Vec<Card>)>;
+
+pub struct GameResult {
+    pub my_score: i32,
+    pub opponent_score: i32,
+}
+
+impl Display for GameResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "GameResult[")?;
+        match self.my_score.cmp(&self.opponent_score) {
+            std::cmp::Ordering::Less => write!(f, "LOSE")?,
+            std::cmp::Ordering::Equal => write!(f, "DRAW")?,
+            std::cmp::Ordering::Greater => write!(f, "WIN")?,
+        };
+        write!(f, " ({}, {})]", self.my_score, self.opponent_score)?;
+
+        Ok(())
+    }
+}
 
 pub struct Client<P: Player> {
     context: AContext,
     preferred_format: Format,
     player: P,
+    player_id: PlayerId,
     game_picker: GamePickerFn,
 }
 
@@ -25,22 +49,33 @@ struct Session<'p, P: Player> {
 }
 
 impl<P: Player> Client<P> {
-    pub fn new(context: AContext, preferred_format: Format, player: P,
+    pub fn new(context: Context, preferred_format: Format, player: P,
                game_picker: GamePickerFn
     )-> Self {
         Self {
-            context,
+            context: Arc::new(context),
             preferred_format,
             player,
+            player_id: PlayerId::North,
             game_picker,
         }
     }
 
-    pub fn join_game(&mut self, host: &str) -> Result<GameResult, String> {
+    pub fn start(&mut self, host: &str) -> Result<GameResult, String> {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
             let mut session =  self.join_game_async(host).await?;
-            session.start().await
+            let result = session.start().await?;
+            Ok(match self.player_id {
+                PlayerId::Sourth => GameResult {
+                    my_score: result.south_score,
+                    opponent_score: result.north_score,
+                },
+                PlayerId::North => GameResult {
+                    my_score: result.north_score,
+                    opponent_score: result.south_score,
+                },
+            })
         })
     }
 
@@ -92,25 +127,24 @@ macro_rules! def_rpc {
 }
 
 impl <'p, P: Player> Session<'p, P> {
-    async fn start(&mut self) -> Result<GameResult, String> {
+    async fn start(&mut self) -> Result<proto::Scores, String> {
         let mut game_list = self.manmenmi().await?;
         let (game_id, deck) = (*self.client.game_picker)(&game_list);
         let join_game = self.send_join_game(JoinGameRequest {
             game_id,
             deck: card::to_ids(&deck),
         }).await?;
-        let player_id = join_game.player_id;
+        self.client.player_id = join_game.player_id;
 
         // TODO: We know our server supports only one game for now...
         assert_eq!(1, game_list.len());
         let game_info = game_list.remove(0);
 
-        self.client.player.init_game(player_id.into(), &self.client.context, deck);
+        self.client.player.init_game(self.client.player_id.into(), &self.client.context, deck);
 
         let hands = self.client.context.get_cards(&join_game.initial_hands);
         info!("Initial Hand dealed: {}", card::format_cards(&hands));
         let need_redeal = self.client.player.need_redeal_hands(&hands);
-        info!("Need redeal?: {}", need_redeal);
         let accept_hands_res = self.send_accept_hands(AcceptHandsRequest { accept: !need_redeal }).await?;
 
         let mut state = State::new(game_info.board.into(), 0, 0, 0, vec![], vec![]);
@@ -124,13 +158,14 @@ impl <'p, P: Player> Session<'p, P> {
             let opponent_action = res.opponent_action.convert(&self.client.context);
             hands = self.client.context.get_cards(&res.hands);
 
-            let (action_s, action_n) = match player_id {
+            let (action_s, action_n) = match self.client.player_id {
                 PlayerId::Sourth => (action, opponent_action),
                 PlayerId::North => (opponent_action, action),
             };
 
             state::update_state(&mut state, &action_s, &action_n);
             info!("State updated: {}", state);
+            info!("Player ID: {:?}", self.client.player_id);
 
             if let Some(result) = res.game_result {
                 return Ok(result);

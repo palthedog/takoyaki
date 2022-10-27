@@ -35,12 +35,12 @@ pub enum Format {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct GameResult {
+pub struct Scores {
     pub south_score: i32,
     pub north_score: i32,
 }
 
-impl Display for GameResult {
+impl Display for Scores {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f,
                "GameResult: (south: {}, north: {})",
@@ -75,19 +75,19 @@ pub struct Board {
     pub cells: Vec<Vec<BoardCell>>,
 }
 
-impl Into<crate::engine::board::Board> for Board {
-    fn into(self) -> crate::engine::board::Board {
-        let (h, w) = (self.cells.len(), self.cells[0].len());
+impl From<Board> for crate::engine::board::Board {
+    fn from(val: Board) -> Self {
+        let (h, w) = (val.cells.len(), val.cells[0].len());
         let mut cells = Vec::with_capacity(h as usize);
         for y in 0..h {
             let mut row = Vec::with_capacity(w as usize);
             for x in 0..w {
-                row.push(self.cells[y][x].into());
+                row.push(val.cells[y][x].into());
             }
             cells.push(row);
         }
         crate::engine::board::Board::new(
-            self.name.into(),
+            val.name,
             cells
         )
     }
@@ -126,9 +126,9 @@ pub enum BoardCell {
     SpecialNorth = -2,
 }
 
-impl Into<crate::engine::board::BoardCell> for BoardCell {
-    fn into(self) -> crate::engine::board::BoardCell {
-        match self {
+impl From<BoardCell> for crate::engine::board::BoardCell {
+    fn from(val: BoardCell) -> Self {
+        match val {
             BoardCell::None => crate::engine::board::BoardCell::None,
             BoardCell::Wall => crate::engine::board::BoardCell::Wall,
             BoardCell::InkSouth => crate::engine::board::BoardCell::Ink(crate::engine::game::PlayerId::Player),
@@ -159,9 +159,9 @@ pub enum PlayerId {
     North = -1,
 }
 
-impl Into<game::PlayerId> for PlayerId {
-    fn into(self) -> game::PlayerId {
-        match self {
+impl From<PlayerId> for game::PlayerId {
+    fn from(val: PlayerId) -> Self {
+        match val {
             PlayerId::Sourth => game::PlayerId::Player,
             PlayerId::North => game::PlayerId::Opponent,
         }
@@ -202,12 +202,12 @@ pub struct CardPosition {
     pub rotation: Rotation,
 }
 
-impl Into<crate::engine::card::CardPosition> for CardPosition {
-    fn into(self) -> crate::engine::card::CardPosition {
+impl From<CardPosition> for crate::engine::card::CardPosition {
+    fn from(val: CardPosition) -> Self {
         crate::engine::card::CardPosition {
-            x: self.x,
-            y: self.y,
-            rotation: self.rotation.into(),
+            x: val.x,
+            y: val.y,
+            rotation: val.rotation.into(),
         }
     }
 }
@@ -231,9 +231,9 @@ pub enum Rotation {
     Left,
 }
 
-impl Into<crate::engine::game::Rotation> for Rotation {
-    fn into(self) -> crate::engine::game::Rotation {
-        match self {
+impl From<Rotation> for crate::engine::game::Rotation {
+    fn from(val: Rotation) -> Self {
+        match val {
             Rotation::Up => crate::engine::game::Rotation::Up,
             Rotation::Right => crate::engine::game::Rotation::Right,
             Rotation::Down => crate::engine::game::Rotation::Down,

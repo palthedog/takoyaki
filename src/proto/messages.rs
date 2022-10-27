@@ -93,7 +93,7 @@ pub struct SelectActionResponse {
     pub opponent_action: Action,
     pub hands: Vec<CardId>,
 
-    pub game_result: Option<GameResult>,
+    pub game_result: Option<Scores>,
 }
 
 #[cfg(test)]

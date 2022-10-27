@@ -39,7 +39,7 @@ impl GameSession {
         }
     }
 
-    pub async fn start(&self) -> Result<(), Error>{
+    pub async fn start(&self) -> Result<Scores, Error>{
         info!("New game session is started.");
 
         let board = self.board.clone();
@@ -111,11 +111,18 @@ impl GameSession {
 
             send_result_s.await.unwrap().unwrap();
             send_result_n.await.unwrap().unwrap();
-        }
 
-        info!("Result: {:?}", state.lock().await.board.get_scores());
-        info!("Elapsed time: {:?}", t_start_game.elapsed());
-        Ok(())
+            let st = state.lock().await;
+            if st.is_end() {
+                info!("Elapsed time: {:?}", t_start_game.elapsed());
+                let scores = st.board.get_scores();
+                return Ok(Scores {
+                    south_score: scores.0,
+                    north_score: scores.1,
+                });
+            }
+        }
+        panic!();
     }
 
     async fn init_player(context: AContext, board: Arc<Board>, client: Arc<Mutex<ClientConnection>>) -> Result<PlayerCardState, Error> {
@@ -181,7 +188,7 @@ impl GameSession {
             let state = state.lock().await;
             if state.is_end() {
                 let (s, n) = state.board.get_scores();
-                Some(GameResult {
+                Some(Scores {
                     south_score: s,
                     north_score: n,
                 })

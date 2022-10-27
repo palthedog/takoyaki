@@ -83,15 +83,13 @@ impl Connection {
             });
         };
 
-        let v = match flexbuffers::from_slice(&self.buffer) {
+        match flexbuffers::from_slice(&self.buffer) {
             Ok(req) => Ok(req),
             Err(e) => Err(Error{
                 code: ErrorCode::MalformedPayload,
                 message: format!("Failed to parse flexbuffers: {}", e),
             }),
-        };
-
-        v
+        }
     }
 
     pub async fn send<P>(&mut self, response: &P) -> Result<(), Error>

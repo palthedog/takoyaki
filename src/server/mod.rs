@@ -41,6 +41,8 @@ async fn create_session_loop(context: AContext, board: Board, seed: u64)-> Sende
                 let board = board;
                 let client_south = c0;
                 let client_north = c1;
+                let south_name = client_south.name.clone();
+                let north_name = client_north.name.clone();
                 let rng = Mt64::from(seed);
                 let session = Arc::new(GameSession::new(
                     context,
@@ -49,7 +51,17 @@ async fn create_session_loop(context: AContext, board: Board, seed: u64)-> Sende
                     client_north,
                     rng,
                 ));
-                let _result = session.start().await;
+                let result = session.start().await;
+                match result {
+                    Ok(r) => {
+                        info!("Result: {}({}) v.s. {}({})",
+                              south_name, r.south_score,
+                              north_name, r.north_score
+                        );
+
+                    },
+                    Err(_) => todo!(),
+                }
             });
         }
     });
