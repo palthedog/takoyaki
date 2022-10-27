@@ -38,7 +38,7 @@ pub struct AppArgs {
     #[clap(long, short = 'c', value_parser, default_value_t = 1)]
     play_cnt: u32,
 
-    /// List of cards which the player can choose for their deck
+    /// List of cards which the player can choose for their deck. See data/decks/starter for an example.
     #[clap(
         short,
         long,
@@ -47,7 +47,7 @@ pub struct AppArgs {
     )]
     player_deck_path: PathBuf,
 
-    /// List of cards which the opponnt can choose for their deck
+    /// List of cards which the opponnt can choose for their deck. See data/decks/starter for an example.
     #[clap(
         short,
         long,
