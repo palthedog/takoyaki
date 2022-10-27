@@ -66,6 +66,14 @@ macro_rules! def_rpc {
                 if let Err(e) = self.connection.send(&TakoyakiRequest::$root(req)).await {
                     return Err(format!("Send RPC error: {:?}", e));
                 }
+
+                // TODO: Fix me... it's sad to set the format here.
+                // The client send our preferred format.
+                // We can use our preferred one from next message.
+                // Note that we must set the format before start receiving a next message
+                // since the server will sent next message encoded as preferred one.
+                self.connection.set_preferred_format(self.client.preferred_format);
+
                 let res: [<$root Response>] = match self.connection.recv().await {
                     Ok(TakoyakiResponse::$root(v)) => v,
                     Ok(v) => {
@@ -107,6 +115,7 @@ impl <'p, P: Player> Session<'p, P> {
 
         let mut state = State::new(game_info.board.into(), 0, 0, 0, vec![], vec![]);
         let mut hands = self.client.context.get_cards(&accept_hands_res.hands);
+
         loop {
             let action = self.client.player.get_action(&state, &hands);
             let res = self.send_select_action(SelectActionRequest{
@@ -135,15 +144,13 @@ impl <'p, P: Player> Session<'p, P> {
                 name: self.client.player.get_name().into(),
                 preferred_format: self.client.preferred_format,
             }).await;
+
         let res = match res {
             Ok(v) => v,
             Err(e) => {
                 return Err(format!("Got error at Manmenmi: {}", e));
             },
         };
-        // The client send our preferred format.
-        // We can use our preferred one from next message.
-        self.connection.set_preferred_format(self.client.preferred_format);
         Ok(res.available_games)
     }
 

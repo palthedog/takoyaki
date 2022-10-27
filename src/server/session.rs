@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use log::*;
 use paste::paste;
 use rand::seq::SliceRandom;
@@ -65,7 +65,9 @@ impl GameSession {
             _ => todo!(),
         };
 
-        let mut state = State::new((*self.board).clone(), 0, 0, 0, vec![], vec![]);
+        let t_start_game = Instant::now();
+
+        let state = Arc::new(Mutex::new(State::new((*self.board).clone(), 0, 0, 0, vec![], vec![])));
         for turn in 0..game::TURN_COUNT {
             debug!("Turn {}, Player state: {}, {}", turn, north_state, south_state);
 
@@ -85,31 +87,34 @@ impl GameSession {
 
             let south_action = action_s.convert(&self.context);
             let north_action = action_n.convert(&self.context);
-            state::update_state(&mut state, &south_action, &north_action);
-            state::update_player_state(&mut south_state, &south_action);
-            state::update_player_state(&mut north_state, &north_action);
+            {
+                let mut state = state.lock().await;
+                state::update_state(&mut state, &south_action, &north_action);
+                state::update_player_state(&mut south_state, &south_action);
+                state::update_player_state(&mut north_state, &north_action);
+            }
 
             let state_s = state.clone();
             let south = self.client_south.clone();
-            let hands = card::to_ids(&south_state.get_hands());
+            let hands = card::to_ids(south_state.get_hands());
             let opponent_action = action_n;
             let send_result_s = tokio::spawn(async move {
-                Self::send_result(&opponent_action, hands, &state_s, south).await
+                Self::send_result(&opponent_action, hands, state_s, south).await
             });
             let state_n = state.clone();
             let north = self.client_north.clone();
-            let hands = card::to_ids(&north_state.get_hands());
+            let hands = card::to_ids(north_state.get_hands());
             let opponent_action = action_s;
             let send_result_n = tokio::spawn(async move {
-                Self::send_result(&opponent_action, hands, &state_n, north).await
+                Self::send_result(&opponent_action, hands, state_n, north).await
             });
 
             send_result_s.await.unwrap().unwrap();
             send_result_n.await.unwrap().unwrap();
         }
 
-        debug!("Closing a sessin");
-        debug!("Result: {:?}", state.board.get_scores());
+        info!("Result: {:?}", state.lock().await.board.get_scores());
+        info!("Elapsed time: {:?}", t_start_game.elapsed());
         Ok(())
     }
 
@@ -170,16 +175,19 @@ impl GameSession {
         Ok(select.action)
     }
 
-    async fn send_result(opponent_action: &Action, hands: Vec<CardId>, state: &State, client: Arc<Mutex<ClientConnection>>) -> Result<(), Error> {
+    async fn send_result(opponent_action: &Action, hands: Vec<CardId>, state: Arc<Mutex<State>>, client: Arc<Mutex<ClientConnection>>) -> Result<(), Error> {
         let mut client = client.lock().await;
-        let game_result = if state.is_end() {
-            let (s, n) = state.board.get_scores();
-            Some(GameResult {
-                south_score: s,
-                north_score: n,
-            })
-        } else {
-            None
+        let game_result = {
+            let state = state.lock().await;
+            if state.is_end() {
+                let (s, n) = state.board.get_scores();
+                Some(GameResult {
+                    south_score: s,
+                    north_score: n,
+                })
+            } else {
+                None
+            }
         };
         let res = SelectActionResponse {
             opponent_action: *opponent_action,

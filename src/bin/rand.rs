@@ -48,7 +48,7 @@ fn main() {
 
     let mut client: Client<RandomPlayer> = Client::new(
         context,
-        Format::Json,
+        Format::Flexbuffers,
         RandomPlayer::new(42),
         Box::new(move |games: &[GameInfo]| {
             let game_id = games[0].game_id;

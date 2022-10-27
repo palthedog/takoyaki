@@ -30,9 +30,9 @@ async fn create_session_loop(context: AContext, board: Board, seed: u64)-> Sende
     tokio::spawn(async move {
         loop {
             let c0 = receiver.recv().await.expect("Server closed while receiving.");
-            info!("Client 0 joined: {:?}", c0);
+            info!("Client 0 joined: {:?}", c0.name);
             let c1 = receiver.recv().await.expect("Server closed while receiving.");
-            info!("Client 1 joined: {:?}", c1);
+            info!("Client 1 joined: {:?}", c1.name);
             let seed = rng.next_u64();
             let board = board.clone();
             let context = context.clone();
@@ -76,7 +76,6 @@ async fn run_server_async(context: &Context, args: ServerArgs) {
                 tokio::spawn(async move {
                     info!("New client is coming from {}", addr);
                     try_establish_connection(stream, sender, seed).await;
-                    info!("Client is disconnected {}", addr);
                 });
             }
             Err(e) => {
