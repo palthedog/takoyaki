@@ -10,7 +10,7 @@ Takoyaki can run simulated battles to build (possibly) stronger deck for you.
 First of all, update `data/deck/mine` to list up all card IDs which you already have in Splatoon3.
 Then, run 'train-deck' command:
 ```
-RUST_LOG=info cargo run --bin takoyaki --release -- train-deck --max-generation=1000 --battles-per-epoch=10 --population-size=30 --elite-count=10 -i data/decks/mine
+cargo run -p deck_builder --release -- --max-generation=1000 --battles-per-epoch=10 --population-size=30 --elite-count=10 -i data/decks/mine
 ```
 Then, Takoyaki continuously run simulated battles and show you candidates of deck.
 Note that Takoyaki only uses cards listed in `data/deck/mine` so that you can use the deck in your actual splatoon account.
@@ -18,11 +18,11 @@ Note that Takoyaki only uses cards listed in `data/deck/mine` so that you can us
 ## How to run battles?
 You can run a following command to see a battle (AI v.s. AI):
 ```
-cargo run --bin takoyaki --release -- --step-execution --player=random --opponent=mcts-1000 play --play-cnt=1 --player-deck-path=data/decks/starter  --opponent-deck-path=data/decks/starter
+cargo run --release -- --step-execution --player=random --opponent=mcts-1000 --play-cnt=1 --player-deck-path=data/decks/starter  --opponent-deck-path=data/decks/starter
 ```
 the result would be something like
 ```
-UDON[~/work/takoyaki/](master)$ cargo run --bin takoyaki --release -- --step-execution --player=random --opponent=mcts-1000 play --play-cnt=1 --player-deck-path=data/decks/starter  --opponent-deck-path=data/decks/starter
+UDON[~/work/takoyaki/](master)$ cargo run --release -- --step-execution --player=random --opponent=mcts-1000 --play-cnt=1 --player-deck-path=data/decks/starter  --opponent-deck-path=data/decks/starter
     Finished release [optimized] target(s) in 0.01s
      Running `target/release/takoyaki --step-execution --player=random --opponent=mcts-1000 play --play-cnt=1 --player-deck-path=data/decks/starter --opponent-deck-path=data/decks/starter`
 Player action: Put(batoroika) @ [p: [2,18], r: Right, s: false]
