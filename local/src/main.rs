@@ -1,15 +1,24 @@
 use std::path::PathBuf;
 
-use clap::{self, Parser, ValueHint};
+use clap::{
+    self,
+    Parser,
+    ValueHint,
+};
 use log::*;
 
-use players::{PlayerType, Player};
-use rand::seq::SliceRandom;
-use rand_mt::Mt64;
 use engine::{
     self,
-    Context, Board, Card,
+    Board,
+    Card,
+    Context,
 };
+use players::{
+    Player,
+    PlayerType,
+};
+use rand::seq::SliceRandom;
+use rand_mt::Mt64;
 
 #[derive(Parser)]
 pub struct AppArgs {

@@ -1,20 +1,34 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fmt::Display,
     path::PathBuf,
 };
 
-use clap::{ValueHint, Parser};
+use clap::{
+    Parser,
+    ValueHint,
+};
 use log::*;
 use more_asserts::assert_le;
 use players::PlayerType;
-use rand::{prelude::Distribution, seq::IteratorRandom, Rng};
-use rand_distr::{WeightedAliasIndex, WeightedIndex};
+use rand::{
+    prelude::Distribution,
+    seq::IteratorRandom,
+    Rng,
+};
+use rand_distr::{
+    WeightedAliasIndex,
+    WeightedIndex,
+};
 use rand_mt::Mt64;
 
 use engine::{
+    Board,
     Card,
-    Context, Board,
+    Context,
 };
 
 use players::Player;
@@ -347,17 +361,17 @@ impl<'c> DeckBuilder<'c> {
             "elite-count must be smaller than population-size"
         );
 
-        let validation_deck = self.context.get_cards(
-            &engine::load_deck(&self.args.validation_deck_path));
+        let validation_deck = self
+            .context
+            .get_cards(&engine::load_deck(&self.args.validation_deck_path));
 
-        let loaded_evaluation_deck: Vec<Card> = if let Some(eval_deck_path) =
-            &self.args.evaluation_deck_path
-        {
-            self.context.get_cards(&engine::load_deck(eval_deck_path))
-        } else {
-            // it's not used.
-            vec![]
-        };
+        let loaded_evaluation_deck: Vec<Card> =
+            if let Some(eval_deck_path) = &self.args.evaluation_deck_path {
+                self.context.get_cards(&engine::load_deck(eval_deck_path))
+            } else {
+                // it's not used.
+                vec![]
+            };
 
         let mut population = self.create_initial_population();
         let max_epoch = self.args.max_generation;
@@ -406,9 +420,7 @@ impl<'c> DeckBuilder<'c> {
     }
 }
 
-pub fn train_deck<'p, 'c: 'p>(
-    args: DeckBuilderArgs,
-) {
+pub fn train_deck<'p, 'c: 'p>(args: DeckBuilderArgs) {
     let all_cards = engine::load_cards(&args.card_dir);
     let board = engine::load_board(&args.board_path);
 
@@ -424,9 +436,6 @@ pub fn train_deck<'p, 'c: 'p>(
     let mut opponent = args.opponent.create_player(&context, rng.next_u64());
 
     let ids = engine::load_deck(&args.inventory_path);
-    let card_map = ids
-        .iter()
-        .map(|id| (*id, context.get_card(*id)))
-        .collect();
+    let card_map = ids.iter().map(|id| (*id, context.get_card(*id))).collect();
     DeckBuilder::new(&context, board.clone(), args, card_map).run(&mut *player, &mut *opponent);
 }

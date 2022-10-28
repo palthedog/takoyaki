@@ -5,21 +5,17 @@ use rand::seq::SliceRandom;
 use rand_mt::Mt64;
 
 use engine::{
+    Board,
     Card,
     Context,
-    PlayerId,
     PlayerCardState,
+    PlayerId,
     State,
-    Board,
 };
 
 use players::*;
 
-pub fn deal_hands(
-    rng: &mut Mt64,
-    deck: &[Card],
-    player: &mut dyn Player,
-) -> PlayerCardState {
+pub fn deal_hands(rng: &mut Mt64, deck: &[Card], player: &mut dyn Player) -> PlayerCardState {
     let mut deck = deck.to_vec();
     debug!(
         "Deck: {:#?}",

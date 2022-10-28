@@ -1,4 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 // Do NOT import types from crate::engine to prvent changes in engine/ affects the wire format.
 use super::*;
@@ -75,7 +78,7 @@ pub struct JoinGameResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct AcceptHandsRequest {
-    pub accept: bool
+    pub accept: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]

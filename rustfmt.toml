@@ -1,0 +1,7 @@
+edition = "2021"
+reorder_imports = true
+
+# nightly features...
+imports_layout = "Vertical"
+imports_granularity = "Crate"
+

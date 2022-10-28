@@ -1,8 +1,11 @@
 use log::*;
 
 use engine::{
-    Card, CardPosition,
-    Action, PlayerId, Rotation,
+    Action,
+    Card,
+    CardPosition,
+    PlayerId,
+    Rotation,
     State,
 };
 
@@ -20,11 +23,7 @@ pub fn append_valid_actions(
             let card_height = card.calculate_height(rotation);
             for y in 1..height - card_height {
                 for x in 1..width - card_width {
-                    let pos = CardPosition {
-                        x,
-                        y,
-                        rotation,
-                    };
+                    let pos = CardPosition { x, y, rotation };
 
                     // Normal
                     let action = Action::Put(card.clone(), pos);

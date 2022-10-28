@@ -1,11 +1,15 @@
 use engine::{
+    Action,
     Card,
-    Action, Context, PlayerId,
+    Context,
+    PlayerId,
     State,
 };
 
-use super::random;
-use super::mcts;
+use super::{
+    mcts,
+    random,
+};
 
 /// The base class for all player implementations.
 pub trait Player {

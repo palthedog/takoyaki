@@ -1,7 +1,16 @@
 use std::{
-    fmt::{Display, Formatter},
-    fs::{self, File},
-    io::{BufRead, BufReader},
+    fmt::{
+        Display,
+        Formatter,
+    },
+    fs::{
+        self,
+        File,
+    },
+    io::{
+        BufRead,
+        BufReader,
+    },
     path::PathBuf,
 };
 
@@ -83,8 +92,7 @@ pub struct Board {
 }
 
 impl Board {
-    pub fn new(name: String,
-               cells: Vec<Vec<BoardCell>>) -> Self {
+    pub fn new(name: String, cells: Vec<Vec<BoardCell>>) -> Self {
         let width = cells[0].len() as i32;
         let height = cells.len() as i32;
         Self {

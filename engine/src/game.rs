@@ -1,6 +1,12 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{
+    collections::HashMap,
+    fmt::Display,
+};
 
-use super::card::{Card, CardPosition};
+use super::card::{
+    Card,
+    CardPosition,
+};
 
 pub const HAND_SIZE: usize = 4;
 pub const DECK_SIZE: usize = 15;
@@ -15,9 +21,12 @@ pub struct Context {
 
 impl Context {
     pub fn get_card(&self, card_id: u32) -> Card {
-        self.all_cards.get(&card_id).unwrap_or_else(||{
-            panic!("Unknown card ID: {}", card_id);
-        }).clone()
+        self.all_cards
+            .get(&card_id)
+            .unwrap_or_else(|| {
+                panic!("Unknown card ID: {}", card_id);
+            })
+            .clone()
     }
 
     pub fn get_cards(&self, ids: &[u32]) -> Vec<Card> {
@@ -93,11 +102,11 @@ impl Action {
         matches!(self, Action::Pass(_))
     }
 
-/*
-    pub fn is_put(&self) -> bool {
-        matches!(self, Action::Put(_, _))
-    }
-*/
+    /*
+        pub fn is_put(&self) -> bool {
+            matches!(self, Action::Put(_, _))
+        }
+    */
 }
 
 impl Display for Action {

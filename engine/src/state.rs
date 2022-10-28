@@ -1,16 +1,29 @@
-use std::{cmp::Ordering, collections::HashMap, fmt::Display, hash::Hash};
+use std::{
+    cmp::Ordering,
+    collections::HashMap,
+    fmt::Display,
+    hash::Hash,
+};
 
 use log::*;
 use more_asserts::*;
 
 use super::{
-    board::{Board, BoardCell, BoardPosition},
-    card::{Card, CardCell},
+    board::{
+        Board,
+        BoardCell,
+        BoardPosition,
+    },
+    card::{
+        Card,
+        CardCell,
+        CardPosition,
+    },
     game,
-};
-use super::{
-    card::CardPosition,
-    game::{Action, PlayerId},
+    game::{
+        Action,
+        PlayerId,
+    },
 };
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -234,7 +247,7 @@ fn is_valid_action_put(
     player_id: PlayerId,
     card: &Card,
     position: &CardPosition,
-    special: bool
+    special: bool,
 ) -> bool {
     if special {
         match player_id {
@@ -353,11 +366,7 @@ pub mod tests {
         new_test_card_impl(lines, 42, special_cost)
     }
 
-    pub fn new_test_card_impl(
-        lines: &[&str],
-        id: u32,
-        special_cost: i32,
-    ) -> Card {
+    pub fn new_test_card_impl(lines: &[&str], id: u32, special_cost: i32) -> Card {
         let lines: Vec<String> = lines.iter().map(|s| String::from(*s)).collect();
         let cell_cnt: i32 = lines
             .iter()

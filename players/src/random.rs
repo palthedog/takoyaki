@@ -3,12 +3,17 @@ use rand::Rng;
 use rand_mt::Mt64;
 
 use engine::{
+    Action,
     Card,
-    Action, Context, PlayerId,
+    Context,
+    PlayerId,
     State,
 };
 
-use super::{utils, Player};
+use super::{
+    utils,
+    Player,
+};
 
 pub struct RandomPlayer {
     player_id: PlayerId,

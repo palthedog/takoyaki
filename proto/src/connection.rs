@@ -1,13 +1,23 @@
 use log::*;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::fmt::Display;
 use tokio::{
     self,
-    io::{AsyncBufReadExt, AsyncWriteExt, AsyncReadExt},
+    io::{
+        AsyncBufReadExt,
+        AsyncReadExt,
+        AsyncWriteExt,
+    },
+    net::TcpStream,
 };
-use tokio::net::TcpStream;
-use std::fmt::Display;
 
-use crate::{ErrorCode, WireFormat};
+use crate::{
+    ErrorCode,
+    WireFormat,
+};
 
 #[derive(Debug)]
 pub struct Error {
@@ -38,7 +48,9 @@ impl Connection {
     }
 
     pub async fn recv<P>(&mut self) -> Result<P, Error>
-    where P: for<'de> Deserialize<'de> {
+    where
+        P: for<'de> Deserialize<'de>,
+    {
         match self.preferred_format {
             WireFormat::Json => self.recv_json().await,
             WireFormat::Flexbuffers => self.recv_flexbuffers().await,
@@ -46,20 +58,20 @@ impl Connection {
     }
 
     async fn recv_json<P>(&mut self) -> Result<P, Error>
-    where P: for<'de> Deserialize<'de> {
+    where
+        P: for<'de> Deserialize<'de>,
+    {
         let mut line = String::new();
-        if let Err(e) = self.stream
-            .read_line(&mut line)
-            .await {
-                return Err(Error {
-                    code: ErrorCode::MalformedPayload,  // network error?
-                    message: e.to_string(),
-                });
-            }
+        if let Err(e) = self.stream.read_line(&mut line).await {
+            return Err(Error {
+                code: ErrorCode::MalformedPayload, // network error?
+                message: e.to_string(),
+            });
+        }
         debug!("Read line: {}", line.trim_end());
         match serde_json::from_str::<P>(&line) {
             Ok(req) => Ok(req),
-            Err(e) =>  Err(Error {
+            Err(e) => Err(Error {
                 code: ErrorCode::MalformedPayload,
                 message: e.to_string(),
             }),
@@ -67,7 +79,9 @@ impl Connection {
     }
 
     async fn recv_flexbuffers<P>(&mut self) -> Result<P, Error>
-    where P: for <'de> Deserialize<'de> {
+    where
+        P: for<'de> Deserialize<'de>,
+    {
         let size: u32 = match self.stream.read_u32().await {
             Ok(v) => v,
             Err(e) => return Err(Error{
@@ -76,8 +90,12 @@ impl Connection {
             }),
         };
 
-        if let Err(e) = (&mut self.stream).take(size.into()).read_to_end(&mut self.buffer).await {
-            return Err(Error{
+        if let Err(e) = (&mut self.stream)
+            .take(size.into())
+            .read_to_end(&mut self.buffer)
+            .await
+        {
+            return Err(Error {
                 code: ErrorCode::MalformedPayload,
                 message: format!("Failed to read data from the stream: {}", e),
             });
@@ -85,7 +103,7 @@ impl Connection {
 
         match flexbuffers::from_slice(&self.buffer) {
             Ok(req) => Ok(req),
-            Err(e) => Err(Error{
+            Err(e) => Err(Error {
                 code: ErrorCode::MalformedPayload,
                 message: format!("Failed to parse flexbuffers: {}", e),
             }),
@@ -93,7 +111,8 @@ impl Connection {
     }
 
     pub async fn send<P>(&mut self, response: &P) -> Result<(), Error>
-        where P: Serialize
+    where
+        P: Serialize,
     {
         match self.preferred_format {
             WireFormat::Json => self.send_json(response).await,
@@ -102,28 +121,32 @@ impl Connection {
     }
 
     async fn send_json<P>(&mut self, response: &P) -> Result<(), Error>
-        where P: Serialize
+    where
+        P: Serialize,
     {
         let serialized = match serde_json::to_vec(&response) {
             Ok(v) => v,
             Err(e) => {
-                return Err(Error{
+                return Err(Error {
                     code: ErrorCode::SerializationFailure,
                     message: format!("{}", e),
                 });
             }
         };
 
-        trace!("Send: Serialized data: {:?}", String::from_utf8_lossy(&serialized));
+        trace!(
+            "Send: Serialized data: {:?}",
+            String::from_utf8_lossy(&serialized)
+        );
         if let Err(_e) = self.stream.write_all(&serialized).await {
-            return Err(Error{
+            return Err(Error {
                 code: ErrorCode::NetworkError,
                 message: "Failed to write data into the network stream".into(),
             });
         }
 
         if let Err(_e) = self.stream.write_u8(b'\n').await {
-            return Err(Error{
+            return Err(Error {
                 code: ErrorCode::NetworkError,
                 message: "Failed to write the delimiter into the network stream".into(),
             });
@@ -134,12 +157,13 @@ impl Connection {
     }
 
     async fn send_flexbuffers<P>(&mut self, response: &P) -> Result<(), Error>
-        where P: Serialize
+    where
+        P: Serialize,
     {
         let serialized = match flexbuffers::to_vec(&response) {
             Ok(v) => v,
             Err(e) => {
-                return Err(Error{
+                return Err(Error {
                     code: ErrorCode::SerializationFailure,
                     message: format!("{}", e),
                 });
@@ -149,7 +173,7 @@ impl Connection {
         let size = serialized.len();
         // Write the size first.
         if let Err(_e) = self.stream.write_u32(size as u32).await {
-            return Err(Error{
+            return Err(Error {
                 code: ErrorCode::NetworkError,
                 message: "Failed to write the size delimiter into the network stream".into(),
             });
@@ -157,7 +181,7 @@ impl Connection {
         // Then, the body follows
         if let Err(e) = self.stream.write_all(&serialized).await {
             error!("Failed to send body: {}", e);
-            return Err(Error{
+            return Err(Error {
                 code: ErrorCode::NetworkError,
                 message: "Failed to write data into the network stream".into(),
             });
@@ -170,7 +194,11 @@ impl Connection {
 
 impl Display for Connection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Connection(addr: {:?})", self.stream.get_ref().peer_addr())?;
+        write!(
+            f,
+            "Connection(addr: {:?})",
+            self.stream.get_ref().peer_addr()
+        )?;
         Ok(())
     }
 }

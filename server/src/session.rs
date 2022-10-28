@@ -1,31 +1,56 @@
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use log::*;
 use paste::paste;
 use rand::seq::SliceRandom;
 use rand_mt::Mt64;
-use tokio::net::TcpStream;
-use tokio::sync::Mutex;
-use tokio::sync::mpsc::Sender;
-use tokio::time::timeout;
+use std::{
+    sync::Arc,
+    time::{
+        Duration,
+        Instant,
+    },
+};
+use tokio::{
+    net::TcpStream,
+    sync::{
+        mpsc::Sender,
+        Mutex,
+    },
+    time::timeout,
+};
 
-use engine::{Board, PlayerCardState, State, self};
-use proto::{self, *};
-use proto::connection::{Connection, Error};
-
-use super::AContext;
+use engine::{
+    self,
+    Board,
+    Context,
+    PlayerCardState,
+    State,
+};
+use proto::{
+    self,
+    connection::{
+        Connection,
+        Error,
+    },
+    *,
+};
 
 /// An object represents a session of a game
 #[derive(Debug)]
 pub struct GameSession {
-    context: AContext,
+    context: Arc<Context>,
     board: Arc<Board>,
     client_south: Arc<Mutex<ClientConnection>>,
     client_north: Arc<Mutex<ClientConnection>>,
 }
 
 impl GameSession {
-    pub fn new(context: AContext, board: Arc<Board>, mut client_south: ClientConnection, mut client_north: ClientConnection, _rng: Mt64) -> Self {
+    pub fn new(
+        context: Arc<Context>,
+        board: Arc<Board>,
+        mut client_south: ClientConnection,
+        mut client_north: ClientConnection,
+        _rng: Mt64,
+    ) -> Self {
         client_south.set_player_id(PlayerId::Sourth);
         client_north.set_player_id(PlayerId::North);
         Self {
@@ -36,22 +61,18 @@ impl GameSession {
         }
     }
 
-    pub async fn start(&self) -> Result<Scores, Error>{
+    pub async fn start(&self) -> Result<Scores, Error> {
         info!("New game session is started.");
 
         let board = self.board.clone();
         let south = self.client_south.clone();
         let ctx = self.context.clone();
-        let h_ps = tokio::spawn(async move {
-            Self::init_player(ctx, board, south).await
-        });
+        let h_ps = tokio::spawn(async move { Self::init_player(ctx, board, south).await });
 
         let board = self.board.clone();
         let north = self.client_north.clone();
         let ctx = self.context.clone();
-        let h_pn = tokio::spawn(async move {
-            Self::init_player(ctx, board, north).await
-        });
+        let h_pn = tokio::spawn(async move { Self::init_player(ctx, board, north).await });
 
         let mut north_state: PlayerCardState = match h_pn.await {
             Ok(Ok(v)) => v,
@@ -64,18 +85,24 @@ impl GameSession {
 
         let t_start_game = Instant::now();
 
-        let state = Arc::new(Mutex::new(State::new((*self.board).clone(), 0, 0, 0, vec![], vec![])));
+        let state = Arc::new(Mutex::new(State::new(
+            (*self.board).clone(),
+            0,
+            0,
+            0,
+            vec![],
+            vec![],
+        )));
         for turn in 0..engine::TURN_COUNT {
-            debug!("Turn {}, Player state: {}, {}", turn, north_state, south_state);
+            debug!(
+                "Turn {}, Player state: {}, {}",
+                turn, north_state, south_state
+            );
 
             let south = self.client_south.clone();
-            let action_s = tokio::spawn(async move {
-                Self::get_action(south).await
-            });
+            let action_s = tokio::spawn(async move { Self::get_action(south).await });
             let north = self.client_north.clone();
-            let action_n = tokio::spawn(async move {
-                Self::get_action(north).await
-            });
+            let action_n = tokio::spawn(async move { Self::get_action(north).await });
 
             let action_s = action_s.await.unwrap()?;
             let action_n = action_n.await.unwrap()?;
@@ -122,7 +149,11 @@ impl GameSession {
         panic!();
     }
 
-    async fn init_player(context: AContext, board: Arc<Board>, client: Arc<Mutex<ClientConnection>>) -> Result<PlayerCardState, Error> {
+    async fn init_player(
+        context: Arc<Context>,
+        board: Arc<Board>,
+        client: Arc<Mutex<ClientConnection>>,
+    ) -> Result<PlayerCardState, Error> {
         let mut client = client.lock().await;
 
         let mut deck_ids = Self::get_deck(board, &mut client).await?;
@@ -131,30 +162,35 @@ impl GameSession {
     }
 
     async fn get_deck(board: Arc<Board>, client: &mut ClientConnection) -> Result<Vec<u32>, Error> {
-        client.send_response(&TakoyakiResponse::Manmenmi(
-            // TODO: Support multiple types of game with other boards.
-            ManmenmiResponse {
-                available_games: vec![
-                    GameInfo {
+        client
+            .send_response(&TakoyakiResponse::Manmenmi(
+                // TODO: Support multiple types of game with other boards.
+                ManmenmiResponse {
+                    available_games: vec![GameInfo {
                         game_id: 0,
-                        board: proto::Board::from(board.as_ref())
-                    }
-                ],
-            }
-        )).await?;
+                        board: proto::Board::from(board.as_ref()),
+                    }],
+                },
+            ))
+            .await?;
 
         let join_game = client.recv_join_game().await?;
         Ok(join_game.deck)
     }
 
-    async fn deal_hands<'a>(context: &AContext, deck_ids: &mut Vec<u32>, client: &mut ClientConnection)
-                            -> Result<PlayerCardState, Error> {
+    async fn deal_hands<'a>(
+        context: &Arc<Context>,
+        deck_ids: &mut Vec<u32>,
+        client: &mut ClientConnection,
+    ) -> Result<PlayerCardState, Error> {
         deck_ids.shuffle(&mut client.rng);
 
-        client.send_response(&TakoyakiResponse::JoinGame(JoinGameResponse {
-            player_id: client.player_id,
-            initial_hands: deck_ids[0..engine::HAND_SIZE].to_vec(),
-        })).await?;
+        client
+            .send_response(&TakoyakiResponse::JoinGame(JoinGameResponse {
+                player_id: client.player_id,
+                initial_hands: deck_ids[0..engine::HAND_SIZE].to_vec(),
+            }))
+            .await?;
 
         let accept_hands = client.recv_accept_hands().await?;
         if !accept_hands.accept {
@@ -163,9 +199,11 @@ impl GameSession {
         }
 
         let (hand_ids, deck_ids) = deck_ids.split_at(engine::HAND_SIZE);
-        client.send_response(&TakoyakiResponse::AcceptHands(AcceptHandsResponse {
-            hands: hand_ids.to_vec(),
-        })).await?;
+        client
+            .send_response(&TakoyakiResponse::AcceptHands(AcceptHandsResponse {
+                hands: hand_ids.to_vec(),
+            }))
+            .await?;
 
         Ok(PlayerCardState::new(
             context.get_cards(hand_ids),
@@ -179,7 +217,12 @@ impl GameSession {
         Ok(select.action)
     }
 
-    async fn send_result(opponent_action: &Action, hands: Vec<CardId>, state: Arc<Mutex<State>>, client: Arc<Mutex<ClientConnection>>) -> Result<(), Error> {
+    async fn send_result(
+        opponent_action: &Action,
+        hands: Vec<CardId>,
+        state: Arc<Mutex<State>>,
+        client: Arc<Mutex<ClientConnection>>,
+    ) -> Result<(), Error> {
         let mut client = client.lock().await;
         let game_result = {
             let state = state.lock().await;
@@ -198,37 +241,42 @@ impl GameSession {
             hands,
             game_result,
         };
-        client.send_response(
-            &TakoyakiResponse::SelectAction(res)).await?;
+        client
+            .send_response(&TakoyakiResponse::SelectAction(res))
+            .await?;
         Ok(())
     }
 }
 
-pub async fn try_establish_connection(stream: TcpStream, client_sender: Sender<ClientConnection>, seed: u64) {
+pub async fn try_establish_connection(
+    stream: TcpStream,
+    client_sender: Sender<ClientConnection>,
+    seed: u64,
+) {
     let mut conn = Connection::new(stream);
     match timeout(Duration::from_secs(10), conn.recv()).await {
         Ok(Ok(TakoyakiRequest::Manmenmi(m))) => {
             conn.set_preferred_format(m.preferred_format);
-            let client = ClientConnection::new(
-                m.name,
-                Mt64::new(seed),
-                conn,
-            );
+            let client = ClientConnection::new(m.name, Mt64::new(seed), conn);
             client_sender.send(client).await.unwrap();
-        },
+        }
         Ok(Ok(_)) => {
-            conn.send(
-                &TakoyakiResponse::Error(ErrorResponse{
-                    code: ErrorCode::BadRequest,
-                    message: "Expected request type: SetDeckRequest".into()
-                })
-            ).await.unwrap_or_default();
+            conn.send(&TakoyakiResponse::Error(ErrorResponse {
+                code: ErrorCode::BadRequest,
+                message: "Expected request type: SetDeckRequest".into(),
+            }))
+            .await
+            .unwrap_or_default();
         }
         Ok(Err(e)) => {
-            conn.send(&TakoyakiResponse::Error(err_to_res(e))).await.unwrap_or_default();
+            conn.send(&TakoyakiResponse::Error(err_to_res(e)))
+                .await
+                .unwrap_or_default();
         }
         Err(_elapsed) => {
-            conn.send(&TakoyakiResponse::Error(ErrorResponse::new_timeout())).await.unwrap_or_default();
+            conn.send(&TakoyakiResponse::Error(ErrorResponse::new_timeout()))
+                .await
+                .unwrap_or_default();
         }
     }
 }
@@ -243,7 +291,7 @@ pub struct ClientConnection {
 }
 
 fn err_to_res(e: Error) -> ErrorResponse {
-    ErrorResponse{
+    ErrorResponse {
         code: e.code,
         message: e.message,
     }
@@ -268,7 +316,7 @@ macro_rules! def_rpc {
 }
 
 impl ClientConnection {
-    fn new(name: String, rng: Mt64, connection: Connection) ->Self {
+    fn new(name: String, rng: Mt64, connection: Connection) -> Self {
         Self {
             name,
             rng,

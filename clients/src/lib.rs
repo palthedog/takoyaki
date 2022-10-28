@@ -1,4 +1,10 @@
-use std::{sync::Arc, fmt::{Display, Formatter}};
+use std::{
+    fmt::{
+        Display,
+        Formatter,
+    },
+    sync::Arc,
+};
 
 use paste::paste;
 use tokio::net::TcpStream;
@@ -6,11 +12,15 @@ use tokio::net::TcpStream;
 use log::*;
 
 use players::Player;
-use proto::*;
-use proto::connection::Connection;
+use proto::{
+    connection::Connection,
+    *,
+};
 
 use engine::{
-    Card, State, Context,
+    Card,
+    Context,
+    State,
 };
 
 pub type GamePickerFn = Box<dyn Fn(&[GameInfo]) -> (GameId, Vec<Card>)>;
@@ -48,9 +58,12 @@ struct Session<'p, P: Player> {
 }
 
 impl<P: Player> Client<P> {
-    pub fn new(context: Context, preferred_format: WireFormat, player: P,
-               game_picker: GamePickerFn
-    )-> Self {
+    pub fn new(
+        context: Context,
+        preferred_format: WireFormat,
+        player: P,
+        game_picker: GamePickerFn,
+    ) -> Self {
         Self {
             context: Arc::new(context),
             preferred_format,
@@ -63,7 +76,7 @@ impl<P: Player> Client<P> {
     pub fn start(&mut self, host: &str) -> Result<GameResult, String> {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
-            let mut session =  self.join_game_async(host).await?;
+            let mut session = self.join_game_async(host).await?;
             let result = session.start().await?;
             Ok(match self.player_id {
                 PlayerId::Sourth => GameResult {
@@ -84,7 +97,7 @@ impl<P: Player> Client<P> {
             Ok(v) => v,
             Err(e) => {
                 return Err(format!("Connection failed: {}", e));
-            },
+            }
         };
         Ok(Session {
             client: self,
@@ -125,35 +138,45 @@ macro_rules! def_rpc {
     }
 }
 
-impl <'p, P: Player> Session<'p, P> {
+impl<'p, P: Player> Session<'p, P> {
     async fn start(&mut self) -> Result<proto::Scores, String> {
         let mut game_list = self.manmenmi().await?;
         let (game_id, deck) = (*self.client.game_picker)(&game_list);
-        let join_game = self.send_join_game(JoinGameRequest {
-            game_id,
-            deck: engine::to_ids(&deck),
-        }).await?;
+        let join_game = self
+            .send_join_game(JoinGameRequest {
+                game_id,
+                deck: engine::to_ids(&deck),
+            })
+            .await?;
         self.client.player_id = join_game.player_id;
 
         // TODO: We know our server supports only one game for now...
         assert_eq!(1, game_list.len());
         let game_info = game_list.remove(0);
 
-        self.client.player.init_game(self.client.player_id.into(), &self.client.context, deck);
+        self.client
+            .player
+            .init_game(self.client.player_id.into(), &self.client.context, deck);
 
         let hands = self.client.context.get_cards(&join_game.initial_hands);
         info!("Initial Hand dealed: {}", engine::format_cards(&hands));
         let need_redeal = self.client.player.need_redeal_hands(&hands);
-        let accept_hands_res = self.send_accept_hands(AcceptHandsRequest { accept: !need_redeal }).await?;
+        let accept_hands_res = self
+            .send_accept_hands(AcceptHandsRequest {
+                accept: !need_redeal,
+            })
+            .await?;
 
         let mut state = State::new(game_info.board.into(), 0, 0, 0, vec![], vec![]);
         let mut hands = self.client.context.get_cards(&accept_hands_res.hands);
 
         loop {
             let action = self.client.player.get_action(&state, &hands);
-            let res = self.send_select_action(SelectActionRequest{
-                action: action.clone().into(),
-            }).await?;
+            let res = self
+                .send_select_action(SelectActionRequest {
+                    action: action.clone().into(),
+                })
+                .await?;
             let opponent_action = res.opponent_action.convert(&self.client.context);
             hands = self.client.context.get_cards(&res.hands);
 
@@ -172,18 +195,19 @@ impl <'p, P: Player> Session<'p, P> {
         }
     }
 
-    async fn manmenmi(&mut self) -> Result<Vec<GameInfo>, String>{
-        let res = self.send_manmenmi(
-            ManmenmiRequest {
+    async fn manmenmi(&mut self) -> Result<Vec<GameInfo>, String> {
+        let res = self
+            .send_manmenmi(ManmenmiRequest {
                 name: self.client.player.get_name().into(),
                 preferred_format: self.client.preferred_format,
-            }).await;
+            })
+            .await;
 
         let res = match res {
             Ok(v) => v,
             Err(e) => {
                 return Err(format!("Got error at Manmenmi: {}", e));
-            },
+            }
         };
         Ok(res.available_games)
     }

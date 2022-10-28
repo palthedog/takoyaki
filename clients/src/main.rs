@@ -1,12 +1,32 @@
 use std::path::PathBuf;
 
-use clap::{Parser, Args, ValueHint, Subcommand};
+use clap::{
+    Args,
+    Parser,
+    Subcommand,
+    ValueHint,
+};
+use log::{
+    error,
+    info,
+};
 
-use clients::{Client, GameResult};
-use engine::{Context, Card};
-use log::{info, error};
-use players::{random::RandomPlayer, mcts::MctsPlayer};
-use proto::{WireFormat, GameInfo};
+use clients::{
+    Client,
+    GameResult,
+};
+use engine::{
+    Card,
+    Context,
+};
+use players::{
+    mcts::MctsPlayer,
+    random::RandomPlayer,
+};
+use proto::{
+    GameInfo,
+    WireFormat,
+};
 
 #[derive(Parser)]
 pub struct ClientArgs {
@@ -28,7 +48,7 @@ pub struct ClientArgs {
     pub server: String,
 
     #[clap(subcommand)]
-    command: Commands
+    command: Commands,
 }
 
 #[derive(Subcommand)]
@@ -43,7 +63,7 @@ enum Commands {
 #[derive(Args)]
 struct MctsArgs {
     #[clap(long, short, value_parser)]
-    iterations: usize
+    iterations: usize,
 }
 
 pub fn init_common(args: &ClientArgs) -> (Context, Vec<Card>) {
@@ -78,9 +98,8 @@ fn handle_result(game_result: Result<GameResult, String>) {
         }
         Ok(result) => {
             info!("{}", result);
-        },
+        }
     };
-
 }
 
 fn run_rand(server: &str, context: Context, deck: Vec<Card>) {
@@ -91,7 +110,7 @@ fn run_rand(server: &str, context: Context, deck: Vec<Card>) {
         Box::new(move |games: &[GameInfo]| {
             let game_id = games[0].game_id;
             (game_id, deck.to_vec())
-        })
+        }),
     );
 
     let result = client.start(server);
@@ -106,7 +125,7 @@ fn run_mcts(server: &str, context: Context, deck: Vec<Card>, mcts_args: MctsArgs
         Box::new(move |games: &[GameInfo]| {
             let game_id = games[0].game_id;
             (game_id, deck.to_vec())
-        })
+        }),
     );
     let result = client.start(server);
     handle_result(result);

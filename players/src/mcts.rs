@@ -1,16 +1,31 @@
 use itertools::Itertools;
-use log::{debug, Level};
+use log::{
+    debug,
+    Level,
+};
 use more_asserts::*;
 use once_cell::sync::OnceCell;
-use rand::seq::SliceRandom;
-use rand::Rng;
+use rand::{
+    seq::SliceRandom,
+    Rng,
+};
 use rand_mt::Mt64;
 use std::cmp::Ordering;
 
-use engine::{Card,Action, Context, PlayerId, PlayerCardState, State};
+use engine::{
+    Action,
+    Card,
+    Context,
+    PlayerCardState,
+    PlayerId,
+    State,
+};
 
 use super::{
-    utils::{self, append_valid_actions},
+    utils::{
+        self,
+        append_valid_actions,
+    },
     Player,
 };
 
@@ -194,11 +209,7 @@ struct Node {
 }
 
 impl Node {
-    fn new(
-        state: State,
-        simultaneous_state: SimultaneousState,
-        action: NodeAction,
-    ) -> Self {
+    fn new(state: State, simultaneous_state: SimultaneousState, action: NodeAction) -> Self {
         assert!(
             !simultaneous_state.both_actions_filled(),
             "If all actions are filled, we should create the new node with a updated State."
@@ -254,7 +265,7 @@ impl Traverser {
         seed: u64,
     ) -> Self {
         Self {
-            context: context.clone(),  // TODO: Stop cloning it.
+            context: context.clone(), // TODO: Stop cloning it.
             player_id,
             my_initial_deck: player_initial_deck,
             rng: Mt64::new(seed),
@@ -278,12 +289,7 @@ impl Traverser {
         }
     }
 
-    fn search_action(
-        &mut self,
-        state: &State,
-        hands: &[Card],
-        iterations: usize,
-    ) -> Action {
+    fn search_action(&mut self, state: &State, hands: &[Card], iterations: usize) -> Action {
         let mut root_node = self.create_root_node(state);
         for _n in 0..iterations {
             let determinization = if self.player_id == PlayerId::Player {
@@ -479,8 +485,7 @@ impl Traverser {
         let mut max_ucb1: f64 = f64::MIN;
         let mut max_index = 0;
 
-        let mut filtered_nodes: Vec<&'a mut Node> =
-            self.get_filtered_nodes(node, determinization);
+        let mut filtered_nodes: Vec<&'a mut Node> = self.get_filtered_nodes(node, determinization);
         let n_sum: i32 = filtered_nodes.iter().map(|n| n.statistic.total_cnt).sum();
 
         let log_n_sum = (n_sum as f64).ln();
@@ -590,17 +595,16 @@ impl Traverser {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, sync::Arc};
+    use std::{
+        collections::HashMap,
+        sync::Arc,
+    };
 
     use engine;
 
     use super::*;
 
-    pub fn new_test_card_impl(
-        lines: &[&str],
-        id: u32,
-        special_cost: i32,
-    ) -> Card {
+    pub fn new_test_card_impl(lines: &[&str], id: u32, special_cost: i32) -> Card {
         let lines: Vec<String> = lines.iter().map(|s| String::from(*s)).collect();
         let cell_cnt: i32 = lines
             .iter()
@@ -624,10 +628,7 @@ mod tests {
         let mut tmp: HashMap<u32, Card> = HashMap::new();
         card_strs.iter().enumerate().for_each(|(i, s)| {
             const SPECIAL_COST: i32 = 10;
-            tmp.insert(
-                i as u32,
-                new_test_card_impl(s, i as u32, SPECIAL_COST),
-            );
+            tmp.insert(i as u32, new_test_card_impl(s, i as u32, SPECIAL_COST));
         });
         tmp
     }

@@ -1,7 +1,13 @@
 use std::fmt::Display;
 
-use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_repr::{
+    Deserialize_repr,
+    Serialize_repr,
+};
 
 use engine;
 
@@ -42,10 +48,11 @@ pub struct Scores {
 
 impl Display for Scores {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,
-               "GameResult: (south: {}, north: {})",
-               self.south_score,
-               self.north_score)?;
+        write!(
+            f,
+            "GameResult: (south: {}, north: {})",
+            self.south_score, self.north_score
+        )?;
         Ok(())
     }
 }
@@ -64,7 +71,7 @@ pub struct PlayerState {
 impl From<&engine::PlayerCardState> for PlayerState {
     fn from(s: &engine::PlayerCardState) -> Self {
         PlayerState {
-            hands: engine::to_ids(s.get_hands())
+            hands: engine::to_ids(s.get_hands()),
         }
     }
 }
@@ -86,10 +93,7 @@ impl From<Board> for engine::Board {
             }
             cells.push(row);
         }
-        engine::Board::new(
-            val.name,
-            cells
-        )
+        engine::Board::new(val.name, cells)
     }
 }
 
@@ -100,13 +104,13 @@ impl From<&engine::Board> for Board {
         for y in 0..h {
             let mut row = Vec::with_capacity(w as usize);
             for x in 0..w {
-                row.push(b.get_cell(engine::BoardPosition{x, y}).into());
+                row.push(b.get_cell(engine::BoardPosition { x, y }).into());
             }
             cells.push(row);
         }
         Board {
             name: b.get_name().into(),
-            cells
+            cells,
         }
     }
 }
@@ -246,7 +250,7 @@ impl From<engine::Rotation> for Rotation {
     fn from(r: engine::Rotation) -> Self {
         match r {
             engine::Rotation::Up => Rotation::Up,
-            engine::Rotation::Right =>Rotation::Right,
+            engine::Rotation::Right => Rotation::Right,
             engine::Rotation::Down => Rotation::Down,
             engine::Rotation::Left => Rotation::Left,
         }

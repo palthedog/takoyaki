@@ -1,15 +1,35 @@
 use std::{
     cmp::Ordering,
     collections::HashMap,
-    fmt::{self, Display, Formatter},
-    fs::{self, File},
-    io::{BufRead, BufReader},
-    path::{Path, PathBuf}, sync::Arc,
+    fmt::{
+        self,
+        Display,
+        Formatter,
+    },
+    fs::{
+        self,
+        File,
+    },
+    io::{
+        BufRead,
+        BufReader,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::Arc,
 };
 
 use super::{
-    board::{BoardCell, BoardPosition},
-    game::{PlayerId, Rotation},
+    board::{
+        BoardCell,
+        BoardPosition,
+    },
+    game::{
+        PlayerId,
+        Rotation,
+    },
 };
 
 use log::*;
@@ -114,7 +134,7 @@ impl CardImpl {
     pub fn get_cells_on_board_coord<'a>(
         &'a self,
         card_position: &CardPosition,
-    ) -> impl Iterator<Item = (BoardPosition, CardCell)> + 'a{
+    ) -> impl Iterator<Item = (BoardPosition, CardCell)> + 'a {
         let cells = self.get_cells(card_position.rotation);
         let cx = card_position.x;
         let cy = card_position.y;
@@ -403,11 +423,7 @@ pub struct CardPosition {
 
 impl Display for CardPosition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "[p: [{},{}], r: {}]",
-            self.x, self.y, self.rotation
-        )
+        write!(f, "[p: [{},{}], r: {}]", self.x, self.y, self.rotation)
     }
 }
 
