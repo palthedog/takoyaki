@@ -84,10 +84,24 @@ fn main() {
     );
 
     let args = ClientArgs::parse();
+
+    let deck_name: String = args
+        .deck_path
+        .file_name()
+        .unwrap()
+        .to_os_string()
+        .into_string()
+        .unwrap();
     let (context, deck) = init_common(&args);
     match args.command {
-        Commands::Rand => run_rand(&args.server, context, deck),
-        Commands::Mcts(m) => run_mcts(&args.server, context, deck, m),
+        Commands::Rand => run_rand(&args.server, context, format!("rand/{}", deck_name), deck),
+        Commands::Mcts(m) => run_mcts(
+            &args.server,
+            context,
+            format!("mcts-{}/{}", m.iterations, deck_name),
+            deck,
+            m,
+        ),
     };
 }
 
@@ -102,11 +116,11 @@ fn handle_result(game_result: Result<GameResult, String>) {
     };
 }
 
-fn run_rand(server: &str, context: Context, deck: Vec<Card>) {
+fn run_rand(server: &str, context: Context, name: String, deck: Vec<Card>) {
     let mut client: Client<RandomPlayer> = Client::new(
         context,
         WireFormat::Flexbuffers,
-        RandomPlayer::new(42),
+        RandomPlayer::new(name, 42),
         Box::new(move |games: &[GameInfo]| {
             let game_id = games[0].game_id;
             (game_id, deck.to_vec())
@@ -117,11 +131,11 @@ fn run_rand(server: &str, context: Context, deck: Vec<Card>) {
     handle_result(result);
 }
 
-fn run_mcts(server: &str, context: Context, deck: Vec<Card>, mcts_args: MctsArgs) {
+fn run_mcts(server: &str, context: Context, name: String, deck: Vec<Card>, mcts_args: MctsArgs) {
     let mut client: Client<MctsPlayer> = Client::new(
         context,
         WireFormat::Flexbuffers,
-        MctsPlayer::new(42, mcts_args.iterations),
+        MctsPlayer::new(name, 42, mcts_args.iterations),
         Box::new(move |games: &[GameInfo]| {
             let game_id = games[0].game_id;
             (game_id, deck.to_vec())

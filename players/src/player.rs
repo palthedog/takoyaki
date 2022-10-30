@@ -58,8 +58,12 @@ impl clap::ArgEnum for PlayerType {
 impl PlayerType {
     pub fn create_player(&self, _context: &Context, seed: u64) -> Box<dyn Player> {
         match self {
-            PlayerType::Random => Box::new(random::RandomPlayer::new(seed)),
-            PlayerType::Mcts { iterations } => Box::new(mcts::MctsPlayer::new(seed, *iterations)),
+            PlayerType::Random => Box::new(random::RandomPlayer::new("rand".into(), seed)),
+            PlayerType::Mcts { iterations } => Box::new(mcts::MctsPlayer::new(
+                format!("mcts-{}", iterations),
+                seed,
+                *iterations,
+            )),
         }
     }
 }

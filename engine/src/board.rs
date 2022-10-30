@@ -107,7 +107,7 @@ impl Board {
         &self.name
     }
 
-    pub fn get_scores(&self) -> (i32, i32) {
+    pub fn get_scores(&self) -> (u32, u32) {
         let mut player_cnt = 0;
         let mut opponent_cnt = 0;
         let (width, height) = self.get_size();

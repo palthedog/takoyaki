@@ -34,6 +34,8 @@ use proto::{
     *,
 };
 
+use crate::stats::NamedScore;
+
 /// An object represents a session of a game
 #[derive(Debug)]
 pub struct GameSession {
@@ -61,7 +63,7 @@ impl GameSession {
         }
     }
 
-    pub async fn start(&self) -> Result<Scores, Error> {
+    pub async fn start(&self) -> Result<(NamedScore, NamedScore), Error> {
         info!("New game session is started.");
 
         let board = self.board.clone();
@@ -140,10 +142,10 @@ impl GameSession {
             if st.is_end() {
                 info!("Elapsed time: {:?}", t_start_game.elapsed());
                 let scores = st.board.get_scores();
-                return Ok(Scores {
-                    south_score: scores.0,
-                    north_score: scores.1,
-                });
+                return Ok((
+                    NamedScore::new(&self.client_south.lock().await.name, scores.0),
+                    NamedScore::new(&self.client_north.lock().await.name, scores.1),
+                ));
             }
         }
         panic!();

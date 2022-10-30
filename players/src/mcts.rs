@@ -39,10 +39,10 @@ pub struct MctsPlayer {
 }
 
 impl MctsPlayer {
-    pub fn new(seed: u64, iterations: usize) -> Self {
+    pub fn new(name: String, seed: u64, iterations: usize) -> Self {
         let rng = Mt64::new(seed);
         MctsPlayer {
-            name: format!("mcts-{}", iterations),
+            name,
             iterations,
             player_id: PlayerId::Player,
             traverser: None,
@@ -59,7 +59,7 @@ impl Player for MctsPlayer {
     fn init_game(&mut self, player_id: PlayerId, context: &Context, deck: Vec<Card>) {
         self.player_id = player_id;
         self.traverser = Some(Traverser::new(
-            &context,
+            context,
             player_id,
             deck,
             self.rng.next_u64(),
@@ -80,17 +80,17 @@ impl Player for MctsPlayer {
 
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 struct Statistic {
-    total_cnt: i32,
-    win_cnt: i32,
-    lose_cnt: i32,
-    draw_cnt: i32,
+    total_cnt: u32,
+    win_cnt: u32,
+    lose_cnt: u32,
+    draw_cnt: u32,
     value: i32,
 }
 
 impl Statistic {
-    fn update_with(&mut self, (p, o): (i32, i32)) {
+    fn update_with(&mut self, (p, o): (u32, u32)) {
         self.total_cnt += 1;
-        self.value += p - o;
+        self.value += p as i32 - o as i32;
         match p.cmp(&o) {
             Ordering::Equal => self.draw_cnt += 1,
             Ordering::Less => self.lose_cnt += 1,
@@ -102,7 +102,7 @@ impl Statistic {
         self.value as f64 / self.total_cnt as f64
     }
 
-    fn get_visit_count(&self) -> i32 {
+    fn get_visit_count(&self) -> u32 {
         self.total_cnt
     }
 }
@@ -375,7 +375,7 @@ impl Traverser {
         }
     }
 
-    fn playout(&mut self, state: &State, determinization: &Determinization) -> (i32, i32) {
+    fn playout(&mut self, state: &State, determinization: &Determinization) -> (u32, u32) {
         let mut state = state.clone();
         let mut p_state = determinization.get_cards(PlayerId::Player).clone();
         let mut o_state = determinization.get_cards(PlayerId::Opponent).clone();
@@ -486,7 +486,7 @@ impl Traverser {
         let mut max_index = 0;
 
         let mut filtered_nodes: Vec<&'a mut Node> = self.get_filtered_nodes(node, determinization);
-        let n_sum: i32 = filtered_nodes.iter().map(|n| n.statistic.total_cnt).sum();
+        let n_sum: u32 = filtered_nodes.iter().map(|n| n.statistic.total_cnt).sum();
 
         let log_n_sum = (n_sum as f64).ln();
         for (i, child) in filtered_nodes.iter().enumerate() {

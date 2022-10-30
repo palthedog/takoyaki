@@ -26,8 +26,8 @@ use engine::{
 pub type GamePickerFn = Box<dyn Fn(&[GameInfo]) -> (GameId, Vec<Card>)>;
 
 pub struct GameResult {
-    pub my_score: i32,
-    pub opponent_score: i32,
+    pub my_score: u32,
+    pub opponent_score: u32,
 }
 
 impl Display for GameResult {

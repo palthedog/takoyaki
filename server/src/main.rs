@@ -6,7 +6,14 @@ use log::*;
 use rand_mt::Mt64;
 use std::{
     path::PathBuf,
-    sync::Arc,
+    sync::{
+        Arc,
+        Mutex,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tokio::{
     self,
@@ -22,10 +29,13 @@ use engine::{
     Board,
     Context,
 };
-use server::session::{
-    self,
-    ClientConnection,
-    GameSession,
+use server::{
+    session::{
+        self,
+        ClientConnection,
+        GameSession,
+    },
+    stats::StatsCounter,
 };
 
 #[derive(Parser)]
@@ -70,6 +80,8 @@ async fn create_session_loop(
         mpsc::channel(8);
     info!("Create session loop is started");
     tokio::spawn(async move {
+        let stats_counter = Arc::new(Mutex::new(StatsCounter::new()));
+        let print_interval = Arc::new(Mutex::new(Instant::now()));
         loop {
             let c0 = receiver
                 .recv()
@@ -84,13 +96,13 @@ async fn create_session_loop(
             let seed = rng.next_u64();
             let board = board.clone();
             let context = context.clone();
+            let stats_counter = stats_counter.clone();
+            let print_interval = print_interval.clone();
             tokio::spawn(async move {
                 let context = context;
                 let board = board;
                 let client_south = c0;
                 let client_north = c1;
-                let south_name = client_south.name.clone();
-                let north_name = client_north.name.clone();
                 let rng = Mt64::from(seed);
                 let session = Arc::new(GameSession::new(
                     context,
@@ -102,10 +114,17 @@ async fn create_session_loop(
                 let result = session.start().await;
                 match result {
                     Ok(r) => {
-                        info!(
-                            "Result: {}({}) v.s. {}({})",
-                            south_name, r.south_score, north_name, r.north_score
-                        );
+                        let mut sc = stats_counter.lock().unwrap();
+                        info!("Result: {} v.s. {}", r.0, r.1);
+                        sc.push_result(&r.0, &r.1);
+
+                        let mut print_interval = print_interval.lock().unwrap();
+
+                        // Print once per second at most.
+                        if print_interval.elapsed() > Duration::from_secs(1) {
+                            info!("{}", sc);
+                            *print_interval = Instant::now();
+                        }
                     }
                     Err(_) => todo!(),
                 }

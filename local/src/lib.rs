@@ -44,7 +44,7 @@ pub fn run(
     player: &mut dyn Player,
     opponent: &mut dyn Player,
     rng: &mut Mt64,
-) -> (i32, i32) {
+) -> (u32, u32) {
     assert_eq!(engine::DECK_SIZE, player_deck.len());
     assert_eq!(engine::DECK_SIZE, opponent_deck.len());
 

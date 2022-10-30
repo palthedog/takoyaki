@@ -17,13 +17,15 @@ use super::{
 
 pub struct RandomPlayer {
     player_id: PlayerId,
+    name: String,
     rng: Mt64,
 }
 
 impl RandomPlayer {
-    pub fn new(seed: u64) -> Self {
+    pub fn new(name: String, seed: u64) -> Self {
         RandomPlayer {
             player_id: PlayerId::Player,
+            name,
             rng: Mt64::new(seed),
         }
     }
@@ -31,7 +33,7 @@ impl RandomPlayer {
 
 impl Player for RandomPlayer {
     fn get_name(&self) -> &str {
-        "rand"
+        &self.name
     }
 
     fn init_game(&mut self, player_id: PlayerId, _context: &Context, _deck: Vec<Card>) {

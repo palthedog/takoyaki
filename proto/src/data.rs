@@ -42,15 +42,15 @@ pub enum WireFormat {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Scores {
-    pub south_score: i32,
-    pub north_score: i32,
+    pub south_score: u32,
+    pub north_score: u32,
 }
 
 impl Display for Scores {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "GameResult: (south: {}, north: {})",
+            "Scores: (south: {}, north: {})",
             self.south_score, self.north_score
         )?;
         Ok(())
