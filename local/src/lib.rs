@@ -15,7 +15,12 @@ use engine::{
 
 use players::*;
 
-pub fn deal_hands(rng: &mut Mt64, deck: &[Card], player: &mut dyn Player) -> PlayerCardState {
+pub fn deal_hands(
+    rng: &mut Mt64,
+    deck: &[Card],
+    player_id: PlayerId,
+    player: &mut dyn Player,
+) -> PlayerCardState {
     let mut deck = deck.to_vec();
     debug!(
         "Deck: {:#?}",
@@ -31,6 +36,7 @@ pub fn deal_hands(rng: &mut Mt64, deck: &[Card], player: &mut dyn Player) -> Pla
     }
 
     PlayerCardState::new(
+        player_id,
         deck[0..engine::HAND_SIZE].to_vec(),
         deck[engine::HAND_SIZE..].to_vec(),
     )
@@ -51,8 +57,8 @@ pub fn run(
     player.init_game(PlayerId::South, context, player_deck.to_vec());
     opponent.init_game(PlayerId::North, context, opponent_deck.to_vec());
 
-    let mut player_state = deal_hands(rng, player_deck, player);
-    let mut opponent_state = deal_hands(rng, opponent_deck, opponent);
+    let mut player_state = deal_hands(rng, player_deck, PlayerId::South, player);
+    let mut opponent_state = deal_hands(rng, opponent_deck, PlayerId::North, opponent);
 
     debug!("Player states initialized");
     debug!("player: {}\nopponent: {}", player_state, opponent_state);
@@ -75,8 +81,8 @@ pub fn run(
         }
 
         engine::update_state(&mut state, &player_action, &opponent_action);
-        engine::update_player_state(&mut player_state, &player_action);
-        engine::update_player_state(&mut opponent_state, &opponent_action);
+        engine::update_player_state(&state, &mut player_state, &player_action);
+        engine::update_player_state(&state, &mut opponent_state, &opponent_action);
 
         debug!("State is updated ->: {}", state);
         debug!("Player state: {}", player_state);

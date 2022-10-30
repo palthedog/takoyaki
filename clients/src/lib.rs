@@ -187,6 +187,8 @@ impl<'p, P: Player> Session<'p, P> {
 
             engine::update_state(&mut state, &action_s, &action_n);
             info!("State updated: {}", state);
+            info!("Act-South: {}", action_s);
+            info!("Act-North: {}", action_n);
             info!("Player ID: {:?}", self.client.player_id);
 
             if let Some(result) = res.game_result {

@@ -116,8 +116,8 @@ impl GameSession {
             {
                 let mut state = state.lock().await;
                 engine::update_state(&mut state, &south_action, &north_action);
-                engine::update_player_state(&mut south_state, &south_action);
-                engine::update_player_state(&mut north_state, &north_action);
+                engine::update_player_state(&state, &mut south_state, &south_action);
+                engine::update_player_state(&state, &mut north_state, &north_action);
             }
 
             let state_s = state.clone();
@@ -208,6 +208,7 @@ impl GameSession {
             .await?;
 
         Ok(PlayerCardState::new(
+            client.player_id.into(),
             context.get_cards(hand_ids),
             context.get_cards(deck_ids),
         ))

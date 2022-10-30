@@ -1,8 +1,5 @@
 use itertools::Itertools;
-use log::{
-    debug,
-    Level,
-};
+use log::*;
 use more_asserts::*;
 use once_cell::sync::OnceCell;
 use rand::{
@@ -10,7 +7,11 @@ use rand::{
     Rng,
 };
 use rand_mt::Mt64;
-use std::cmp::Ordering;
+use std::{
+    cmp::Ordering,
+    collections::HashMap,
+    fmt::Display,
+};
 
 use engine::{
     Action,
@@ -108,14 +109,14 @@ impl Statistic {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum ChanceAction {
     DealInitialHand(PlayerId, [Card; engine::HAND_SIZE]),
 
     DealCard(PlayerId, Card),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum NodeAction {
     Root,
     PlayerAction(PlayerId, Action),
@@ -128,125 +129,249 @@ impl From<ChanceAction> for NodeAction {
     }
 }
 
+impl Display for NodeAction {
+    fn fmt(&self, f: &mut __core::fmt::Formatter<'_>) -> __core::fmt::Result {
+        match self {
+            NodeAction::Root => write!(f, "RootNode"),
+            NodeAction::PlayerAction(pid, act) => write!(f, "PlayerAction({}, {})", pid, act),
+            NodeAction::ChanceAction(_) => write!(f, "ChanceNode"),
+        }
+    }
+}
+
 /// Game state which is visible from a player.
 /// It includes presumed information (e.g. opponent's hand/deck)
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 struct Determinization {
     player_cards: [PlayerCardState; 2],
 }
 
 impl Determinization {
-    fn new(player_cards: PlayerCardState, opponent_cards: PlayerCardState) -> Self {
-        Determinization {
-            player_cards: [player_cards, opponent_cards],
+    fn new(player_cards_a: PlayerCardState, player_cards_b: PlayerCardState) -> Self {
+        //if player_cards.get_player_id() ==
+        if player_cards_a.get_player_id() == PlayerId::North {
+            return Self::new(player_cards_b, player_cards_a);
         }
+
+        assert_eq!(PlayerId::South, player_cards_a.get_player_id());
+        assert_eq!(PlayerId::North, player_cards_b.get_player_id());
+        Determinization {
+            player_cards: [player_cards_a, player_cards_b],
+        }
+    }
+
+    fn get_cards_as_mut(&mut self, player_id: PlayerId) -> &mut PlayerCardState {
+        &mut self.player_cards[player_id.to_index()]
     }
 
     fn get_cards(&self, player_id: PlayerId) -> &PlayerCardState {
         &self.player_cards[player_id.to_index()]
     }
+
+    fn is_consistent(&self, state: &State) -> bool {
+        self.is_consistent_for_player(state, PlayerId::South)
+            && self.is_consistent_for_player(state, PlayerId::North)
+    }
+
+    fn is_consistent_for_player(&self, state: &State, player_id: PlayerId) -> bool {
+        let cards = self.get_cards(player_id);
+        let consumed = state.get_consumed_cards(player_id);
+
+        for consumed_id in consumed {
+            for h in cards.get_hands() {
+                if h.get_id() == *consumed_id {
+                    return false;
+                }
+            }
+            for d in cards.get_deck() {
+                if d.get_id() == *consumed_id {
+                    return false;
+                }
+            }
+        }
+        true
+    }
 }
 
-#[derive(Debug, PartialEq)]
+impl Display for Determinization {
+    fn fmt(&self, f: &mut __core::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Determinization {{")?;
+        writeln!(
+            f,
+            "    South hands: {:?}",
+            self.get_cards(PlayerId::South)
+                .get_hands()
+                .iter()
+                .map(|c| c.get_id())
+                .collect::<Vec<_>>()
+        )?;
+        writeln!(
+            f,
+            "    South deck: {:?}",
+            self.get_cards(PlayerId::South)
+                .get_deck()
+                .iter()
+                .map(|c| c.get_id())
+                .collect::<Vec<_>>()
+        )?;
+        writeln!(
+            f,
+            "    North hands: {:?}",
+            self.get_cards(PlayerId::North)
+                .get_hands()
+                .iter()
+                .map(|c| c.get_id())
+                .collect::<Vec<_>>()
+        )?;
+        writeln!(
+            f,
+            "    North deck: {:?}",
+            self.get_cards(PlayerId::North)
+                .get_deck()
+                .iter()
+                .map(|c| c.get_id())
+                .collect::<Vec<_>>()
+        )?;
+        writeln!(f, "}}")?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 struct SimultaneousState {
-    player_action: Option<Action>,
-    opponent_action: Option<Action>,
+    south_action: Option<Action>,
+    north_action: Option<Action>,
+
+    state: State,
 }
 
 impl SimultaneousState {
-    fn new() -> Self {
+    fn new(state: State) -> Self {
         Self {
-            player_action: None,
-            opponent_action: None,
+            south_action: None,
+            north_action: None,
+            state,
         }
+    }
+
+    fn get_state(&self) -> &State {
+        &self.state
+    }
+
+    fn get_turn(&self) -> i32 {
+        self.state.turn
+    }
+
+    fn is_end(&self) -> bool {
+        self.south_action.is_none() && self.north_action.is_none() && self.state.is_end()
     }
 
     fn action_is_filled(&self, player_id: PlayerId) -> bool {
         match player_id {
-            PlayerId::South => self.player_action.is_some(),
-            PlayerId::North => self.opponent_action.is_some(),
+            PlayerId::South => self.south_action.is_some(),
+            PlayerId::North => self.north_action.is_some(),
         }
     }
 
-    fn with_action(&self, node_action: NodeAction) -> Self {
+    fn with_action(self, node_action: NodeAction) -> Self {
+        let mut south_action = self.south_action;
+        let mut north_action = self.north_action;
+        let mut state = self.state;
         match node_action {
             NodeAction::PlayerAction(PlayerId::South, act) => {
-                assert!(self.player_action.is_none());
-
-                Self {
-                    player_action: Some(act),
-                    opponent_action: self.opponent_action.clone(),
-                }
+                assert!(south_action.is_none());
+                south_action = Some(act);
             }
             NodeAction::PlayerAction(PlayerId::North, act) => {
-                assert!(self.opponent_action.is_none());
-
-                Self {
-                    player_action: self.player_action.clone(),
-                    opponent_action: Some(act),
-                }
+                assert!(north_action.is_none());
+                north_action = Some(act);
             }
             NodeAction::ChanceAction(_) => todo!(),
             NodeAction::Root => todo!(),
         }
+        match (south_action, north_action) {
+            (Some(sa), Some(na)) => {
+                // Both action is filled. Update the State itself.
+                engine::update_state(&mut state, &sa, &na);
+                Self {
+                    south_action: None,
+                    north_action: None,
+                    state,
+                }
+            }
+            (sa, na) => Self {
+                south_action: sa,
+                north_action: na,
+                state,
+            },
+        }
     }
 
     fn both_actions_filled(&self) -> bool {
-        self.player_action.is_some() && self.opponent_action.is_some()
+        self.south_action.is_some() && self.north_action.is_some()
+    }
+}
+
+impl Display for SimultaneousState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "SimultaneousState {{")?;
+        writeln!(f, "    South: {:?}", self.south_action)?;
+        writeln!(f, "    North: {:?}", self.north_action)?;
+        writeln!(f, "    State: {}", self.state)?;
+        writeln!(f, "}}")?;
+        Ok(())
     }
 }
 
 #[derive(Debug, PartialEq)]
 struct Node {
-    state: State,
     simultaneous_state: SimultaneousState,
     action: NodeAction,
 
     statistic: Statistic,
 
-    child_nodes: Vec<Node>,
+    child_nodes: HashMap<NodeAction, Node>,
     legal_actions: OnceCell<Vec<NodeAction>>,
 }
 
 impl Node {
-    fn new(state: State, simultaneous_state: SimultaneousState, action: NodeAction) -> Self {
+    fn new(simultaneous_state: SimultaneousState, action: NodeAction) -> Self {
         assert!(
             !simultaneous_state.both_actions_filled(),
             "If all actions are filled, we should create the new node with a updated State."
         );
 
         Self {
-            state,
             simultaneous_state,
             action,
             statistic: Statistic::default(),
-            child_nodes: vec![],
+            child_nodes: HashMap::new(),
             legal_actions: OnceCell::default(),
         }
     }
 
     fn is_terminal(&self) -> bool {
-        self.state.is_end()
+        self.simultaneous_state.is_end()
     }
 
-    /// True if the node has at least one child node which we have never simulated.
-    fn is_leaf(&self) -> bool {
-        if self.state.is_end() {
-            return true;
-        }
-        let legal_actions = self.legal_actions.get();
-        if legal_actions.is_none() {
-            return true;
-        }
-        legal_actions.unwrap().len() > self.child_nodes.len()
-    }
-
-    fn get_player(&self) -> PlayerId {
+    fn get_player_id(&self) -> PlayerId {
         match self.action {
             NodeAction::PlayerAction(player_id, _) => player_id,
             NodeAction::Root => todo!(),
             NodeAction::ChanceAction(_) => todo!(),
         }
+    }
+}
+
+impl Display for Node {
+    fn fmt(&self, f: &mut __core::fmt::Formatter<'_>) -> __core::fmt::Result {
+        writeln!(f, "Node: {}", self.action)?;
+        writeln!(f, "    children: [")?;
+        for (k, _v) in &self.child_nodes {
+            writeln!(f, "       {}", k)?;
+        }
+        writeln!(f, "    ]")?;
+        Ok(())
     }
 }
 
@@ -276,51 +401,61 @@ impl Traverser {
     fn select_leaf<'a>(
         &mut self,
         root_node: &'a mut Node,
-        determinization: &Determinization,
+        determinization: &mut Determinization,
     ) -> (&'a mut Node, Vec<NodeAction>) {
         let mut history = vec![];
         let mut node: &'a mut Node = root_node;
-        loop {
-            if node.is_leaf() {
-                return (node, history);
-            }
+        while !self.is_leaf_node(node, determinization) {
             node = self.select_child_node(node, determinization);
             history.push(node.action.clone());
+
+            match &node.action {
+                NodeAction::Root => unimplemented!(),
+                NodeAction::PlayerAction(pid, act) => {
+                    assert_eq!(pid, &node.get_player_id());
+                    let player_cards = determinization.get_cards_as_mut(*pid);
+                    let consumed_card = act.get_consumed_card();
+                    player_cards.consume_card(consumed_card);
+
+                    // TODO: Move it under case ChanceAction
+                    if node.simultaneous_state.get_turn() != engine::TURN_COUNT - 1 {
+                        player_cards.draw_card();
+                    }
+                }
+                NodeAction::ChanceAction(_) => todo!(),
+            };
         }
+        (node, history)
     }
 
     fn search_action(&mut self, state: &State, hands: &[Card], iterations: usize) -> Action {
         let mut root_node = self.create_root_node(state);
         for _n in 0..iterations {
-            let determinization = if self.player_id == PlayerId::South {
-                Determinization::new(
-                    self.determinize_my_deck(&root_node.state, hands),
-                    self.determinize_another_deck(&root_node.state),
-                )
-            } else {
-                Determinization::new(
-                    self.determinize_another_deck(&root_node.state),
-                    self.determinize_my_deck(&root_node.state, hands),
-                )
-            };
-            self.iterate(&mut root_node, &determinization);
+            let mut determinization = Determinization::new(
+                self.determinize_my_deck(&root_node.simultaneous_state.get_state(), hands),
+                self.determinize_another_deck(&root_node.simultaneous_state.get_state()),
+            );
+            self.iterate(&mut root_node, &mut determinization);
         }
 
         // Choose the best hand.
         if log::log_enabled!(Level::Debug) {
             debug!("Legal actions");
-            root_node.child_nodes.iter().for_each(|c| match &c.action {
-                NodeAction::Root => todo!(),
-                NodeAction::ChanceAction(_) => todo!(),
-                NodeAction::PlayerAction(player, action) => {
-                    debug!("{:?} {}", player, action)
-                }
-            });
+            root_node
+                .child_nodes
+                .values()
+                .for_each(|c| match &c.action {
+                    NodeAction::Root => todo!(),
+                    NodeAction::ChanceAction(_) => todo!(),
+                    NodeAction::PlayerAction(player, action) => {
+                        debug!("{:?} {}", player, action)
+                    }
+                });
         }
 
         let most_visited = root_node
             .child_nodes
-            .iter()
+            .values()
             .max_by(|a, b| {
                 a.statistic
                     .get_visit_count()
@@ -338,7 +473,7 @@ impl Traverser {
         }
     }
 
-    fn iterate(&mut self, root_node: &mut Node, determinization: &Determinization) {
+    fn iterate(&mut self, root_node: &mut Node, determinization: &mut Determinization) {
         // Selection
         debug!("Selection");
         let (leaf, mut history) = self.select_leaf(root_node, determinization);
@@ -346,9 +481,9 @@ impl Traverser {
         // Expansion
         debug!("Expansion");
         let leaf = if !leaf.is_terminal() {
-            let tmp = self.expand(leaf, determinization);
-            history.push(tmp.action.clone());
-            tmp
+            let new_leaf = self.expand(leaf, determinization);
+            history.push(new_leaf.action.clone());
+            new_leaf
         } else {
             leaf
         };
@@ -359,7 +494,7 @@ impl Traverser {
         // We may need to implement chance nodes to fix the issue?
 
         // Simulation
-        let result = self.playout(&leaf.state, determinization);
+        let result = self.playout(&leaf, determinization);
 
         // Backpropagation
         debug!("Backpropagation");
@@ -368,30 +503,73 @@ impl Traverser {
         for visited_node in history {
             node = node
                 .child_nodes
-                .iter_mut()
+                .values_mut()
                 .find(|c| c.action == visited_node)
                 .unwrap();
             node.statistic.update_with(result);
         }
     }
 
-    fn playout(&mut self, state: &State, determinization: &Determinization) -> (u32, u32) {
-        let mut state = state.clone();
+    fn playout(&mut self, node: &Node, determinization: &Determinization) -> (u32, u32) {
+        debug_assert!(
+            determinization.is_consistent(&node.simultaneous_state.get_state()),
+            "Inconsistent state with the determination:\nConsumed cards:\nSouth: {:?}\nNorth: {:?}\nDeterminization: {}",
+            &node.simultaneous_state.get_state().get_consumed_cards(PlayerId::South),
+            &node.simultaneous_state.get_state().get_consumed_cards(PlayerId::North),
+            determinization
+        );
+
+        let mut simul_state = node.simultaneous_state.clone();
+        debug!("Playout for {}", simul_state);
         let mut p_state = determinization.get_cards(PlayerId::South).clone();
         let mut o_state = determinization.get_cards(PlayerId::North).clone();
-        loop {
-            if state.is_end() {
-                debug!("Playout result: {}", state);
-                return state.board.get_scores();
+        let south_filled = node.simultaneous_state.action_is_filled(PlayerId::South);
+        let north_filled = node.simultaneous_state.action_is_filled(PlayerId::North);
+        if !south_filled && north_filled {
+            let rand_act = self.choose_random_player_action(
+                simul_state.get_state(),
+                PlayerId::South,
+                p_state.get_hands(),
+            );
+            p_state.consume_card(rand_act.get_consumed_card());
+            if simul_state.get_turn() != engine::TURN_COUNT - 1 {
+                p_state.draw_card();
             }
-            let p_act =
-                self.choose_random_player_action(&state, PlayerId::South, p_state.get_hands());
-            let o_act =
-                self.choose_random_player_action(&state, PlayerId::North, o_state.get_hands());
-            engine::update_state(&mut state, &p_act, &o_act);
-            engine::update_player_state(&mut p_state, &p_act);
-            engine::update_player_state(&mut o_state, &o_act);
+            simul_state =
+                simul_state.with_action(NodeAction::PlayerAction(PlayerId::South, rand_act));
         }
+        if !north_filled && south_filled {
+            let rand_act = self.choose_random_player_action(
+                simul_state.get_state(),
+                PlayerId::North,
+                o_state.get_hands(),
+            );
+            o_state.consume_card(rand_act.get_consumed_card());
+            if simul_state.get_turn() != engine::TURN_COUNT - 1 {
+                o_state.draw_card();
+            }
+            simul_state =
+                simul_state.with_action(NodeAction::PlayerAction(PlayerId::North, rand_act));
+        }
+
+        // Both actions shouldn't be filled at this point.
+        assert!(!simul_state.action_is_filled(PlayerId::South));
+        assert!(!simul_state.action_is_filled(PlayerId::North));
+
+        let mut state = simul_state.state;
+
+        while !state.is_end() {
+            let p_act =
+                self.choose_random_player_action(&mut state, PlayerId::South, p_state.get_hands());
+            let o_act =
+                self.choose_random_player_action(&mut state, PlayerId::North, o_state.get_hands());
+
+            engine::update_state(&mut state, &p_act, &o_act);
+            engine::update_player_state(&state, &mut p_state, &p_act);
+            engine::update_player_state(&state, &mut o_state, &o_act);
+        }
+        debug!("Playout result: {}", state);
+        return state.board.get_scores();
     }
 
     fn choose_random_player_action(
@@ -409,19 +587,19 @@ impl Traverser {
     fn expand<'a>(
         &mut self,
         node: &'a mut Node,
-        determinization: &Determinization,
+        determinization: &mut Determinization,
     ) -> &'a mut Node {
         // If we've never expand this node, save the legal actions to the node.
         let legal_actions = node.legal_actions.get_or_init(|| {
             if !node.simultaneous_state.action_is_filled(self.player_id) {
                 self.precalculate_valid_actions(
-                    &node.state,
+                    &node.simultaneous_state.get_state(),
                     determinization.get_cards(self.player_id),
                     self.player_id,
                 )
             } else {
                 self.precalculate_valid_actions(
-                    &node.state,
+                    &node.simultaneous_state.get_state(),
                     determinization.get_cards(self.player_id.another()),
                     self.player_id.another(),
                 )
@@ -433,24 +611,59 @@ impl Traverser {
         assert_lt!(node.child_nodes.len(), legal_actions.len());
         // There are other legal actions which have never selected.
         // Select one of them first.
-        let action = &legal_actions[node.child_nodes.len()];
-        let new_node = self.create_child_node(node, action);
-        node.child_nodes.push(new_node);
-        node.child_nodes.last_mut().unwrap()
+        let filtered_actions = Self::get_filtered_actions(legal_actions, &determinization);
+        let mut expanding_action: Option<NodeAction> = None;
+        for act in filtered_actions {
+            if !node.child_nodes.contains_key(act) {
+                let _ = expanding_action.insert(act.clone());
+                break;
+            }
+        }
+        let expanding_action = expanding_action.unwrap_or_else(|| {
+            let mut s = "Filtered actions: [".to_string();
+            for act in Self::get_filtered_actions(legal_actions, &determinization) {
+                s += &format!("{}, ", act);
+            }
+            s += "]\n";
+            s += &format!("node: {}", node);
+            panic!("{}", s);
+        });
+        match &expanding_action {
+            NodeAction::Root => unimplemented!(),
+            NodeAction::PlayerAction(pid, act) => {
+                let player_cards = determinization.get_cards_as_mut(*pid);
+                player_cards.consume_card(act.get_consumed_card());
+                // TODO: Move it under case ChanceAction
+                if node.simultaneous_state.get_turn() != engine::TURN_COUNT - 1 {
+                    player_cards.draw_card();
+                }
+
+                let new_node = self.create_child_node(node, &expanding_action);
+
+                // TODO: There should be better way...?
+                node.child_nodes.insert(expanding_action.clone(), new_node);
+                node.child_nodes.get_mut(&expanding_action).unwrap()
+            }
+            NodeAction::ChanceAction(_) => todo!(),
+        }
     }
 
     fn create_child_node(&self, node: &Node, action: &NodeAction) -> Node {
-        let new_simultaneous_state = node.simultaneous_state.with_action(action.clone());
-        if new_simultaneous_state.both_actions_filled() {
-            let mut new_state = node.state.clone();
-            engine::update_state(
-                &mut new_state,
-                &new_simultaneous_state.player_action.unwrap(),
-                &new_simultaneous_state.opponent_action.unwrap(),
-            );
-            return Node::new(new_state, SimultaneousState::new(), action.clone());
-        }
-        Node::new(node.state.clone(), new_simultaneous_state, action.clone())
+        let new_simultaneous_state = node.simultaneous_state.clone().with_action(action.clone());
+        Node::new(new_simultaneous_state, action.clone())
+    }
+
+    fn get_filtered_actions<'a>(
+        actions: &'a [NodeAction],
+        determinization: &'a Determinization,
+    ) -> impl Iterator<Item = &'a NodeAction> {
+        actions.iter().filter(|a| match a {
+            NodeAction::Root => unimplemented!(),
+            NodeAction::PlayerAction(pid, act) => determinization
+                .get_cards(*pid)
+                .has_card_in_hands(act.get_consumed_card()),
+            NodeAction::ChanceAction(_) => todo!(),
+        })
     }
 
     fn get_filtered_nodes<'a>(
@@ -459,7 +672,7 @@ impl Traverser {
         determinization: &Determinization,
     ) -> Vec<&'a mut Node> {
         node.child_nodes
-            .iter_mut()
+            .values_mut()
             .filter(|n| match &n.action {
                 NodeAction::PlayerAction(player_id, action) => determinization
                     .get_cards(*player_id)
@@ -474,20 +687,38 @@ impl Traverser {
             .collect()
     }
 
+    fn is_leaf_node(&mut self, node: &mut Node, determinization: &Determinization) -> bool {
+        let legal_actions = node.legal_actions.get();
+        let legal_actions = match legal_actions {
+            // This node has never be expanded.
+            None => return true,
+            Some(v) => v,
+        };
+        let filtered_actions: Vec<&NodeAction> =
+            Self::get_filtered_actions(legal_actions, &determinization).collect();
+        for act in filtered_actions {
+            if !node.child_nodes.contains_key(act) {
+                // This node doesn't have a child node for `act` yet.
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Select a child node which is consistent with the determinization.
     fn select_child_node<'a>(
         &mut self,
         node: &'a mut Node,
         determinization: &Determinization,
     ) -> &'a mut Node {
         assert!(!node.is_terminal());
-        assert!(!node.is_leaf());
 
         let mut max_ucb1: f64 = f64::MIN;
         let mut max_index = 0;
 
         let mut filtered_nodes: Vec<&'a mut Node> = self.get_filtered_nodes(node, determinization);
+        assert_gt!(filtered_nodes.len(), 0);
         let n_sum: u32 = filtered_nodes.iter().map(|n| n.statistic.total_cnt).sum();
-
         let log_n_sum = (n_sum as f64).ln();
         for (i, child) in filtered_nodes.iter().enumerate() {
             assert_gt!(child.statistic.total_cnt, 0);
@@ -505,7 +736,7 @@ impl Traverser {
         const C: f64 = std::f64::consts::SQRT_2;
         let mut value: f64 = child.statistic.get_expected_value();
 
-        if child.get_player() == PlayerId::North {
+        if child.get_player_id() == PlayerId::North {
             value = -value;
         }
 
@@ -562,16 +793,14 @@ impl Traverser {
     }
 
     fn determinize_another_deck(&mut self, state: &State) -> PlayerCardState {
+        let another_player_id = self.player_id.another();
         let mut all_cards = self.context.all_cards.values().cloned().collect_vec();
-        Self::filter_cards(
-            &mut all_cards,
-            state.get_consumed_cards(self.player_id.another()),
-        );
+        Self::filter_cards(&mut all_cards, state.get_consumed_cards(another_player_id));
 
         all_cards.shuffle(&mut self.rng);
         let (hands, deck) = all_cards.split_at(engine::HAND_SIZE);
 
-        PlayerCardState::new(hands.to_vec(), deck.to_vec())
+        PlayerCardState::new(another_player_id, hands.to_vec(), deck.to_vec())
     }
 
     fn determinize_my_deck(&mut self, state: &State, hands: &[Card]) -> PlayerCardState {
@@ -584,12 +813,12 @@ impl Traverser {
 
         // Shuffle cards in deck since the player don't know the order of deck.
         deck_cards.shuffle(&mut self.rng);
-        PlayerCardState::new(hands.to_vec(), deck_cards)
+        PlayerCardState::new(self.player_id, hands.to_vec(), deck_cards)
     }
 
     /// Creates a node from an actual game state (visible from the player).
     fn create_root_node(&mut self, state: &State) -> Node {
-        Node::new(state.clone(), SimultaneousState::new(), NodeAction::Root)
+        Node::new(SimultaneousState::new(state.clone()), NodeAction::Root)
     }
 }
 
@@ -699,15 +928,18 @@ mod tests {
         let mut root_node = traverser.create_root_node(&state);
 
         // The root node is still a leaf node.
-        assert!(root_node.is_leaf());
         assert!(!root_node.is_terminal());
 
         // Legal actions are not computed yet.
         assert!(root_node.legal_actions.get().is_none());
 
         let determinization = Determinization::new(
-            PlayerCardState::new(player_hands.to_vec(), player_deck.to_vec()),
-            PlayerCardState::new(opponent_hands.to_vec(), opponent_deck.to_vec()),
+            PlayerCardState::new(PlayerId::South, player_hands.to_vec(), player_deck.to_vec()),
+            PlayerCardState::new(
+                PlayerId::North,
+                opponent_hands.to_vec(),
+                opponent_deck.to_vec(),
+            ),
         );
 
         // Note that there should be "5" legal actions on the root node.
@@ -717,14 +949,16 @@ mod tests {
 
         // Select leaf and expand for 5 times.
         for i in 1..=5 {
-            traverser.iterate(&mut root_node, &determinization);
+            let mut determinization = determinization.clone();
+            traverser.iterate(&mut root_node, &mut determinization);
             // Checks that all expansion happen on the root node.
             assert_eq!(i, root_node.child_nodes.len());
         }
 
         // All child node should be expanded at this point.
         // So additional iteration doesn't add a child node to the root node.
-        traverser.iterate(&mut root_node, &determinization);
+        let mut determinization = determinization.clone();
+        traverser.iterate(&mut root_node, &mut determinization);
         assert_eq!(5, root_node.child_nodes.len());
     }
 }

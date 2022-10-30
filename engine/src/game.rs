@@ -56,6 +56,17 @@ impl PlayerId {
     }
 }
 
+impl Display for PlayerId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            PlayerId::South => "South",
+            PlayerId::North => "North",
+        };
+        write!(f, "{}", s)?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Rotation {
     Up,
@@ -74,7 +85,7 @@ impl Display for Rotation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Action {
     Pass(Card),
     Put(Card, CardPosition),
@@ -101,25 +112,31 @@ impl Action {
     pub fn is_pass(&self) -> bool {
         matches!(self, Action::Pass(_))
     }
-
-    /*
-        pub fn is_put(&self) -> bool {
-            matches!(self, Action::Put(_, _))
-        }
-    */
 }
 
 impl Display for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Action::Pass(card) => {
-                write!(f, "Pass({})", card.get_name())?;
+                write!(f, "Pass({} {})", card.get_id(), card.get_name())?;
             }
             Action::Put(card, card_position) => {
-                write!(f, "Put({}) @ {}", card.get_name(), card_position)?;
+                write!(
+                    f,
+                    "Put({} {}) @ {}",
+                    card.get_id(),
+                    card.get_name(),
+                    card_position
+                )?;
             }
             Action::Special(card, card_position) => {
-                write!(f, "Special!({}) @ {}", card.get_name(), card_position)?;
+                write!(
+                    f,
+                    "Special!({} {}) @ {}",
+                    card.get_id(),
+                    card.get_name(),
+                    card_position
+                )?;
             }
         }
         Ok(())

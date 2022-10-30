@@ -5,8 +5,9 @@ use std::{
     hash::Hash,
 };
 
-use log::*;
 use more_asserts::*;
+
+use crate::card;
 
 use super::{
     board::{
@@ -42,6 +43,10 @@ impl PlayerCardState {
         }
     }
 
+    pub fn get_player_id(&self) -> PlayerId {
+        self.player_id
+    }
+
     pub fn get_hands(&self) -> &[Card] {
         &self.hands
     }
@@ -50,14 +55,22 @@ impl PlayerCardState {
         &self.deck
     }
 
+    pub fn has_card_in_hands(&self, card: &Card) -> bool {
+        self.hands.contains(card)
+    }
+
     // We may want a randomized version later for random simulation.
-    fn draw_card(&mut self) {
-        if self.deck.is_empty() {
-            debug!("There is no card in the deck.");
-            return;
-        }
-        let draw = self.deck.remove(0);
-        self.hands.push(draw);
+    pub fn draw_card(&mut self) {
+        match self.deck.pop() {
+            None => panic!("There is no card in the deck."),
+            Some(draw) => self.hands.push(draw),
+        };
+        assert_eq!(
+            game::HAND_SIZE,
+            self.hands.len(),
+            "{}",
+            card::format_cards(&self.hands)
+        );
     }
 
     pub fn consume_card(&mut self, card: &Card) {
@@ -142,13 +155,15 @@ impl Display for State {
     }
 }
 
-pub fn update_player_state(player_state: &mut PlayerCardState, action: &Action) {
-    // update hands
+pub fn update_player_state(state: &State, player_state: &mut PlayerCardState, action: &Action) {
     player_state.consume_card(action.get_consumed_card());
-    player_state.draw_card();
+    if !state.is_end() {
+        player_state.draw_card();
+    }
 }
 
 pub fn update_state(state: &mut State, player_action: &Action, opponent_action: &Action) {
+    assert_lt!(state.turn, game::TURN_COUNT);
     if !is_valid_action(state, PlayerId::South, player_action) {
         todo!(
             "Invalid action. Player should lose/nstate: {}/naction: {}",

@@ -12,4 +12,6 @@ members = [
 default-members = ["local"]
 
 [profile.release]
-debug = 1
+
+[profile.dev]
+opt-level = 3
