@@ -135,10 +135,10 @@ impl From<BoardCell> for engine::BoardCell {
         match val {
             BoardCell::None => engine::BoardCell::None,
             BoardCell::Wall => engine::BoardCell::Wall,
-            BoardCell::InkSouth => engine::BoardCell::Ink(engine::PlayerId::Player),
-            BoardCell::SpecialSouth => engine::BoardCell::Special(engine::PlayerId::Player),
-            BoardCell::InkNorth => engine::BoardCell::Ink(engine::PlayerId::Opponent),
-            BoardCell::SpecialNorth => engine::BoardCell::Special(engine::PlayerId::Opponent),
+            BoardCell::InkSouth => engine::BoardCell::Ink(engine::PlayerId::South),
+            BoardCell::SpecialSouth => engine::BoardCell::Special(engine::PlayerId::South),
+            BoardCell::InkNorth => engine::BoardCell::Ink(engine::PlayerId::North),
+            BoardCell::SpecialNorth => engine::BoardCell::Special(engine::PlayerId::North),
         }
     }
 }
@@ -148,10 +148,10 @@ impl From<engine::BoardCell> for BoardCell {
         match c {
             engine::BoardCell::None => BoardCell::None,
             engine::BoardCell::Wall => BoardCell::Wall,
-            engine::BoardCell::Ink(engine::PlayerId::Player) => BoardCell::InkSouth,
-            engine::BoardCell::Ink(engine::PlayerId::Opponent) => BoardCell::InkNorth,
-            engine::BoardCell::Special(engine::PlayerId::Player) => BoardCell::SpecialSouth,
-            engine::BoardCell::Special(engine::PlayerId::Opponent) => BoardCell::SpecialNorth,
+            engine::BoardCell::Ink(engine::PlayerId::South) => BoardCell::InkSouth,
+            engine::BoardCell::Ink(engine::PlayerId::North) => BoardCell::InkNorth,
+            engine::BoardCell::Special(engine::PlayerId::South) => BoardCell::SpecialSouth,
+            engine::BoardCell::Special(engine::PlayerId::North) => BoardCell::SpecialNorth,
         }
     }
 }
@@ -166,8 +166,8 @@ pub enum PlayerId {
 impl From<PlayerId> for engine::PlayerId {
     fn from(val: PlayerId) -> Self {
         match val {
-            PlayerId::Sourth => engine::PlayerId::Player,
-            PlayerId::North => engine::PlayerId::Opponent,
+            PlayerId::Sourth => engine::PlayerId::South,
+            PlayerId::North => engine::PlayerId::North,
         }
     }
 }

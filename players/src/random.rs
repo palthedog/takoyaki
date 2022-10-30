@@ -24,7 +24,7 @@ pub struct RandomPlayer {
 impl RandomPlayer {
     pub fn new(name: String, seed: u64) -> Self {
         RandomPlayer {
-            player_id: PlayerId::Player,
+            player_id: PlayerId::South,
             name,
             rng: Mt64::new(seed),
         }

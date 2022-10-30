@@ -48,8 +48,8 @@ pub fn run(
     assert_eq!(engine::DECK_SIZE, player_deck.len());
     assert_eq!(engine::DECK_SIZE, opponent_deck.len());
 
-    player.init_game(PlayerId::Player, context, player_deck.to_vec());
-    opponent.init_game(PlayerId::Opponent, context, opponent_deck.to_vec());
+    player.init_game(PlayerId::South, context, player_deck.to_vec());
+    opponent.init_game(PlayerId::North, context, opponent_deck.to_vec());
 
     let mut player_state = deal_hands(rng, player_deck, player);
     let mut opponent_state = deal_hands(rng, opponent_deck, opponent);

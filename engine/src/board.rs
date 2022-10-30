@@ -37,10 +37,10 @@ impl BoardCell {
         match self {
             BoardCell::None => '.',
             BoardCell::Wall => '#',
-            BoardCell::Ink(PlayerId::Player) => 'p',
-            BoardCell::Special(PlayerId::Player) => 'P',
-            BoardCell::Ink(PlayerId::Opponent) => 'o',
-            BoardCell::Special(PlayerId::Opponent) => 'O',
+            BoardCell::Ink(PlayerId::South) => 'p',
+            BoardCell::Special(PlayerId::South) => 'P',
+            BoardCell::Ink(PlayerId::North) => 'o',
+            BoardCell::Special(PlayerId::North) => 'O',
         }
     }
 
@@ -48,10 +48,10 @@ impl BoardCell {
         match ch {
             '.' => Ok(BoardCell::None),
             ' ' | '#' => Ok(BoardCell::Wall),
-            'p' => Ok(BoardCell::Ink(PlayerId::Player)),
-            'P' => Ok(BoardCell::Special(PlayerId::Player)),
-            'o' => Ok(BoardCell::Ink(PlayerId::Opponent)),
-            'O' => Ok(BoardCell::Special(PlayerId::Opponent)),
+            'p' => Ok(BoardCell::Ink(PlayerId::South)),
+            'P' => Ok(BoardCell::Special(PlayerId::South)),
+            'o' => Ok(BoardCell::Ink(PlayerId::North)),
+            'O' => Ok(BoardCell::Special(PlayerId::North)),
             _ => Err(format!("Invalid character for a board cell: '{}'", ch)),
         }
     }
@@ -118,10 +118,10 @@ impl Board {
                     y: y as i32,
                 };
                 match self.get_cell(position) {
-                    BoardCell::Ink(PlayerId::Player) | BoardCell::Special(PlayerId::Player) => {
+                    BoardCell::Ink(PlayerId::South) | BoardCell::Special(PlayerId::South) => {
                         player_cnt += 1;
                     }
-                    BoardCell::Ink(PlayerId::Opponent) | BoardCell::Special(PlayerId::Opponent) => {
+                    BoardCell::Ink(PlayerId::North) | BoardCell::Special(PlayerId::North) => {
                         opponent_cnt += 1;
                     }
                     _ => {}
@@ -159,8 +159,8 @@ impl Board {
                         continue;
                     }
                     match player_id {
-                        PlayerId::Player => player_cnt += 1,
-                        PlayerId::Opponent => opponent_cnt += 1,
+                        PlayerId::South => player_cnt += 1,
+                        PlayerId::North => opponent_cnt += 1,
                     }
                 }
             }

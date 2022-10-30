@@ -44,7 +44,7 @@ impl MctsPlayer {
         MctsPlayer {
             name,
             iterations,
-            player_id: PlayerId::Player,
+            player_id: PlayerId::South,
             traverser: None,
             rng,
         }
@@ -163,14 +163,14 @@ impl SimultaneousState {
 
     fn action_is_filled(&self, player_id: PlayerId) -> bool {
         match player_id {
-            PlayerId::Player => self.player_action.is_some(),
-            PlayerId::Opponent => self.opponent_action.is_some(),
+            PlayerId::South => self.player_action.is_some(),
+            PlayerId::North => self.opponent_action.is_some(),
         }
     }
 
     fn with_action(&self, node_action: NodeAction) -> Self {
         match node_action {
-            NodeAction::PlayerAction(PlayerId::Player, act) => {
+            NodeAction::PlayerAction(PlayerId::South, act) => {
                 assert!(self.player_action.is_none());
 
                 Self {
@@ -178,7 +178,7 @@ impl SimultaneousState {
                     opponent_action: self.opponent_action.clone(),
                 }
             }
-            NodeAction::PlayerAction(PlayerId::Opponent, act) => {
+            NodeAction::PlayerAction(PlayerId::North, act) => {
                 assert!(self.opponent_action.is_none());
 
                 Self {
@@ -292,7 +292,7 @@ impl Traverser {
     fn search_action(&mut self, state: &State, hands: &[Card], iterations: usize) -> Action {
         let mut root_node = self.create_root_node(state);
         for _n in 0..iterations {
-            let determinization = if self.player_id == PlayerId::Player {
+            let determinization = if self.player_id == PlayerId::South {
                 Determinization::new(
                     self.determinize_my_deck(&root_node.state, hands),
                     self.determinize_another_deck(&root_node.state),
@@ -377,17 +377,17 @@ impl Traverser {
 
     fn playout(&mut self, state: &State, determinization: &Determinization) -> (u32, u32) {
         let mut state = state.clone();
-        let mut p_state = determinization.get_cards(PlayerId::Player).clone();
-        let mut o_state = determinization.get_cards(PlayerId::Opponent).clone();
+        let mut p_state = determinization.get_cards(PlayerId::South).clone();
+        let mut o_state = determinization.get_cards(PlayerId::North).clone();
         loop {
             if state.is_end() {
                 debug!("Playout result: {}", state);
                 return state.board.get_scores();
             }
             let p_act =
-                self.choose_random_player_action(&state, PlayerId::Player, p_state.get_hands());
+                self.choose_random_player_action(&state, PlayerId::South, p_state.get_hands());
             let o_act =
-                self.choose_random_player_action(&state, PlayerId::Opponent, o_state.get_hands());
+                self.choose_random_player_action(&state, PlayerId::North, o_state.get_hands());
             engine::update_state(&mut state, &p_act, &o_act);
             engine::update_player_state(&mut p_state, &p_act);
             engine::update_player_state(&mut o_state, &o_act);
@@ -505,7 +505,7 @@ impl Traverser {
         const C: f64 = std::f64::consts::SQRT_2;
         let mut value: f64 = child.statistic.get_expected_value();
 
-        if child.get_player() == PlayerId::Opponent {
+        if child.get_player() == PlayerId::North {
             value = -value;
         }
 
@@ -693,7 +693,7 @@ mod tests {
         let (opponent_hands, opponent_deck) = opponent_initial_deck.split_at(engine::HAND_SIZE);
 
         let player_initial_deck = context.all_cards.values().cloned().collect_vec();
-        let mut traverser = Traverser::new(&context, PlayerId::Player, player_initial_deck, SEED);
+        let mut traverser = Traverser::new(&context, PlayerId::South, player_initial_deck, SEED);
 
         let state = State::new(board, 0, 0, 0, vec![], vec![]);
         let mut root_node = traverser.create_root_node(&state);

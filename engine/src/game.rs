@@ -36,22 +36,22 @@ impl Context {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PlayerId {
-    Player,
-    Opponent,
+    South,
+    North,
 }
 
 impl PlayerId {
     pub fn another(&self) -> PlayerId {
         match self {
-            PlayerId::Player => PlayerId::Opponent,
-            PlayerId::Opponent => PlayerId::Player,
+            PlayerId::South => PlayerId::North,
+            PlayerId::North => PlayerId::South,
         }
     }
 
     pub fn to_index(self) -> usize {
         match self {
-            PlayerId::Player => 0,
-            PlayerId::Opponent => 1,
+            PlayerId::South => 0,
+            PlayerId::North => 1,
         }
     }
 }

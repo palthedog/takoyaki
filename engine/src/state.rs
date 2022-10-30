@@ -28,13 +28,18 @@ use super::{
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct PlayerCardState {
+    player_id: PlayerId,
     hands: Vec<Card>,
     deck: Vec<Card>,
 }
 
 impl PlayerCardState {
-    pub fn new(hands: Vec<Card>, deck: Vec<Card>) -> PlayerCardState {
-        PlayerCardState { hands, deck }
+    pub fn new(player_id: PlayerId, hands: Vec<Card>, deck: Vec<Card>) -> PlayerCardState {
+        PlayerCardState {
+            player_id,
+            hands,
+            deck,
+        }
     }
 
     pub fn get_hands(&self) -> &[Card] {
@@ -118,8 +123,8 @@ impl State {
 
     pub fn get_consumed_cards(&self, player_id: PlayerId) -> &[u32] {
         match player_id {
-            PlayerId::Player => &self.player_consumed_cards,
-            PlayerId::Opponent => &self.opponent_consumed_cards,
+            PlayerId::South => &self.player_consumed_cards,
+            PlayerId::North => &self.opponent_consumed_cards,
         }
     }
 }
@@ -144,14 +149,14 @@ pub fn update_player_state(player_state: &mut PlayerCardState, action: &Action) 
 }
 
 pub fn update_state(state: &mut State, player_action: &Action, opponent_action: &Action) {
-    if !is_valid_action(state, PlayerId::Player, player_action) {
+    if !is_valid_action(state, PlayerId::South, player_action) {
         todo!(
             "Invalid action. Player should lose/nstate: {}/naction: {}",
             state,
             player_action
         );
     }
-    if !is_valid_action(state, PlayerId::Opponent, opponent_action) {
+    if !is_valid_action(state, PlayerId::North, opponent_action) {
         todo!(
             "Opponent should lose/nstate: {}/naction: {}",
             state,
@@ -206,7 +211,7 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
         let (card, card_position) = player_action.get_card_and_position();
         for (board_pos, cell) in card.get_cells_on_board_coord(card_position) {
             // Modify board
-            let fill = cell.cell_type.to_board_cell(PlayerId::Player);
+            let fill = cell.cell_type.to_board_cell(PlayerId::South);
             state.board.put_cell(board_pos, fill);
             // Remember the priority
             priorities.insert(board_pos, cell.priority);
@@ -222,7 +227,7 @@ fn fill_cells(state: &mut State, player_action: &Action, opponent_action: &Actio
                 .unwrap_or(&CardCell::PRIORITY_MAX);
             match priority.cmp(&cell.priority) {
                 Ordering::Greater => {
-                    let fill = cell.cell_type.to_board_cell(PlayerId::Opponent);
+                    let fill = cell.cell_type.to_board_cell(PlayerId::North);
                     state.board.put_cell(board_pos, fill);
                 }
                 Ordering::Equal => {
@@ -251,12 +256,12 @@ fn is_valid_action_put(
 ) -> bool {
     if special {
         match player_id {
-            PlayerId::Player => {
+            PlayerId::South => {
                 if state.player_special_count < card.get_special_cost() {
                     return false;
                 }
             }
-            PlayerId::Opponent => {
+            PlayerId::North => {
                 if state.opponent_special_count < card.get_special_cost() {
                     return false;
                 }
@@ -402,7 +407,7 @@ pub mod tests {
         // NO conflict
         assert!(is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Put(
                 card.clone(),
                 CardPosition {
@@ -416,7 +421,7 @@ pub mod tests {
         // DO conflict with wall
         assert!(!is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Put(
                 card.clone(),
                 CardPosition {
@@ -430,7 +435,7 @@ pub mod tests {
         // DO conflict with ink
         assert!(!is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Put(
                 card,
                 CardPosition {
@@ -457,7 +462,7 @@ pub mod tests {
 
         assert!(!is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Put(
                 card,
                 CardPosition {
@@ -485,7 +490,7 @@ pub mod tests {
         // NO touching point
         assert!(!is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Put(
                 card.clone(),
                 CardPosition {
@@ -499,7 +504,7 @@ pub mod tests {
         // touch!
         assert!(is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Put(
                 card,
                 CardPosition {
@@ -536,7 +541,7 @@ pub mod tests {
 
         assert!(is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Put(
                 card.clone(),
                 CardPosition {
@@ -548,7 +553,7 @@ pub mod tests {
         ));
         assert!(is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Put(
                 card.clone(),
                 CardPosition {
@@ -560,7 +565,7 @@ pub mod tests {
         ));
         assert!(is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Put(
                 card.clone(),
                 CardPosition {
@@ -572,7 +577,7 @@ pub mod tests {
         ));
         assert!(is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Put(
                 card,
                 CardPosition {
@@ -611,7 +616,7 @@ pub mod tests {
         // Special attack can't be triggered without special ink on the board.
         assert!(!is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Special(
                 card.clone(),
                 CardPosition {
@@ -640,7 +645,7 @@ pub mod tests {
         // Now we have a special ink.
         assert!(is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Special(
                 card.clone(),
                 CardPosition {
@@ -667,7 +672,7 @@ pub mod tests {
         // Special attack can overdraw other ink
         assert!(is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Special(
                 card.clone(),
                 CardPosition {
@@ -679,7 +684,7 @@ pub mod tests {
         ));
         assert!(!is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Put(
                 card.clone(),
                 CardPosition {
@@ -706,7 +711,7 @@ pub mod tests {
         // Special attack can NOT overdraw player's SPECIAL ink too
         assert!(!is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Special(
                 card,
                 CardPosition {
@@ -744,7 +749,7 @@ pub mod tests {
         // Now we have a special ink.
         assert!(is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Special(
                 card.clone(),
                 CardPosition {
@@ -770,7 +775,7 @@ pub mod tests {
         0, vec![], vec![]);
         assert!(!is_valid_action(
             &state,
-            PlayerId::Player,
+            PlayerId::South,
             &Action::Special(
                 card,
                 CardPosition {
