@@ -4,6 +4,7 @@ use std::{
         Formatter,
     },
     sync::Arc,
+    time::Duration,
 };
 
 use paste::paste;
@@ -50,6 +51,7 @@ pub struct Client<P: Player> {
     player: P,
     player_id: PlayerId,
     game_picker: GamePickerFn,
+    game_info: Option<GameInfo>,
 }
 
 struct Session<'p, P: Player> {
@@ -70,6 +72,7 @@ impl<P: Player> Client<P> {
             player,
             player_id: PlayerId::North,
             game_picker,
+            game_info: None,
         }
     }
 
@@ -140,8 +143,12 @@ macro_rules! def_rpc {
 
 impl<'p, P: Player> Session<'p, P> {
     async fn start(&mut self) -> Result<proto::Scores, String> {
-        let mut game_list = self.manmenmi().await?;
+        let game_list = self.manmenmi().await?;
         let (game_id, deck) = (*self.client.game_picker)(&game_list);
+        let game_info: GameInfo = game_list
+            .into_iter()
+            .find(|g| g.game_id == game_id)
+            .unwrap_or_else(|| panic!("Couldn't find a game with id: {}", game_id));
         let join_game = self
             .send_join_game(JoinGameRequest {
                 game_id,
@@ -149,10 +156,7 @@ impl<'p, P: Player> Session<'p, P> {
             })
             .await?;
         self.client.player_id = join_game.player_id;
-
-        // TODO: We know our server supports only one game for now...
-        assert_eq!(1, game_list.len());
-        let game_info = game_list.remove(0);
+        self.client.game_info = Some(game_info);
 
         self.client
             .player
@@ -167,11 +171,26 @@ impl<'p, P: Player> Session<'p, P> {
             })
             .await?;
 
-        let mut state = State::new(game_info.board.into(), 0, 0, 0, vec![], vec![]);
+        let mut state = State::new(
+            self.client.game_info.as_ref().unwrap().board.clone().into(),
+            0,
+            0,
+            0,
+            vec![],
+            vec![],
+        );
         let mut hands = self.client.context.get_cards(&accept_hands_res.hands);
+        let time_buffer = Duration::from_millis(100);
+        let time_limit = match self.client.game_info.as_ref().unwrap().time_control {
+            TimeControl::Infinite => Duration::MAX,
+            TimeControl::PerAction {
+                time_limit_in_seconds,
+            } => Duration::from_secs(time_limit_in_seconds.into()),
+        };
+        let time_limit = time_limit.saturating_sub(time_buffer);
 
         loop {
-            let action = self.client.player.get_action(&state, &hands);
+            let action = self.client.player.get_action(&state, &hands, &time_limit);
             let res = self
                 .send_select_action(SelectActionRequest {
                     action: action.clone().into(),

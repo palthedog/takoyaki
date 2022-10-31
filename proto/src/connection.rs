@@ -172,7 +172,8 @@ impl Connection {
 
         let size = serialized.len();
         // Write the size first.
-        if let Err(_e) = self.stream.write_u32(size as u32).await {
+        if let Err(e) = self.stream.write_u32(size as u32).await {
+            error!("Failed to send size: {}", e);
             return Err(Error {
                 code: ErrorCode::NetworkError,
                 message: "Failed to write the size delimiter into the network stream".into(),

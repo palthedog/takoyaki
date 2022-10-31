@@ -88,7 +88,7 @@ impl From<&engine::PlayerCardState> for PlayerState {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Board {
     pub name: String,
     pub cells: Vec<Vec<BoardCell>>,

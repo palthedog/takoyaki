@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use log::*;
 use rand::Rng;
 use rand_mt::Mt64;
@@ -44,7 +46,7 @@ impl Player for RandomPlayer {
         self.rng.gen_bool(0.5)
     }
 
-    fn get_action(&mut self, state: &State, hands: &[Card]) -> Action {
+    fn get_action(&mut self, state: &State, hands: &[Card], _time_limit: &Duration) -> Action {
         let mut actions_buffer: Vec<Action> = vec![];
         utils::append_valid_actions(state, hands, self.player_id, &mut actions_buffer);
         debug!("Got {} valid actions", actions_buffer.len());

@@ -11,6 +11,10 @@ use std::{
     cmp::Ordering,
     collections::HashMap,
     fmt::Display,
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use engine::{
@@ -71,11 +75,11 @@ impl Player for MctsPlayer {
         self.rng.gen_bool(0.5)
     }
 
-    fn get_action(&mut self, state: &State, hands: &[Card]) -> Action {
+    fn get_action(&mut self, state: &State, hands: &[Card], time_limit: &Duration) -> Action {
         self.traverser
             .as_mut()
             .unwrap()
-            .search_action(state, hands, self.iterations)
+            .search_action(state, hands, self.iterations, time_limit)
     }
 }
 
@@ -428,14 +432,26 @@ impl Traverser {
         (node, history)
     }
 
-    fn search_action(&mut self, state: &State, hands: &[Card], iterations: usize) -> Action {
+    fn search_action(
+        &mut self,
+        state: &State,
+        hands: &[Card],
+        iterations: usize,
+        time_limit: &Duration,
+    ) -> Action {
         let mut root_node = self.create_root_node(state);
-        for _n in 0..iterations {
+        let timer = Instant::now();
+        for n in 0..iterations {
             let mut determinization = Determinization::new(
                 self.determinize_my_deck(&root_node.simultaneous_state.get_state(), hands),
                 self.determinize_another_deck(&root_node.simultaneous_state.get_state()),
             );
             self.iterate(&mut root_node, &mut determinization);
+
+            if timer.elapsed() > *time_limit {
+                info!("Time limit exceeded: Ran {} iterations", n + 1);
+                break;
+            }
         }
 
         // Choose the best hand.

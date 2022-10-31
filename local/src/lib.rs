@@ -1,4 +1,7 @@
-use std::io::stdin;
+use std::{
+    io::stdin,
+    time::Duration,
+};
 
 use log::*;
 use rand::seq::SliceRandom;
@@ -65,8 +68,9 @@ pub fn run(
     let mut state = State::new(board.clone(), 0, 0, 0, vec![], vec![]);
     for turn in 0..engine::TURN_COUNT {
         debug!("Starting Turn {}", turn + 1);
-        let player_action = player.get_action(&state, player_state.get_hands());
-        let opponent_action = opponent.get_action(&state, opponent_state.get_hands());
+        let player_action = player.get_action(&state, player_state.get_hands(), &Duration::MAX);
+        let opponent_action =
+            opponent.get_action(&state, opponent_state.get_hands(), &Duration::MAX);
 
         debug!("Original State: {}", state);
         debug!("Player state: {}", player_state);

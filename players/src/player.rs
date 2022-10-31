@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use engine::{
     Action,
     Card,
@@ -19,7 +21,7 @@ pub trait Player {
     /// It will be called once before the first action.
     fn need_redeal_hands(&mut self, dealed_cards: &[Card]) -> bool;
 
-    fn get_action(&mut self, state: &State, hands: &[Card]) -> Action;
+    fn get_action(&mut self, state: &State, hands: &[Card], time_limit: &Duration) -> Action;
 }
 
 #[derive(Clone, Debug)]

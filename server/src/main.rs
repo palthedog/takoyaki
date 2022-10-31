@@ -139,7 +139,7 @@ async fn create_session_loop(
                             *print_interval = Instant::now();
                         }
                     }
-                    Err(_) => todo!(),
+                    Err(e) => todo!("Handle error: {:?}", e),
                 }
             });
         }
