@@ -371,7 +371,7 @@ impl Display for Node {
     fn fmt(&self, f: &mut __core::fmt::Formatter<'_>) -> __core::fmt::Result {
         writeln!(f, "Node: {}", self.action)?;
         writeln!(f, "    children: [")?;
-        for (k, _v) in &self.child_nodes {
+        for k in self.child_nodes.keys() {
             writeln!(f, "       {}", k)?;
         }
         writeln!(f, "    ]")?;
@@ -443,8 +443,8 @@ impl Traverser {
         let timer = Instant::now();
         for n in 0..iterations {
             let mut determinization = Determinization::new(
-                self.determinize_my_deck(&root_node.simultaneous_state.get_state(), hands),
-                self.determinize_another_deck(&root_node.simultaneous_state.get_state()),
+                self.determinize_my_deck(root_node.simultaneous_state.get_state(), hands),
+                self.determinize_another_deck(root_node.simultaneous_state.get_state()),
             );
             self.iterate(&mut root_node, &mut determinization);
 
@@ -510,7 +510,7 @@ impl Traverser {
         // We may need to implement chance nodes to fix the issue?
 
         // Simulation
-        let result = self.playout(&leaf, determinization);
+        let result = self.playout(leaf, determinization);
 
         // Backpropagation
         debug!("Backpropagation");
@@ -528,7 +528,7 @@ impl Traverser {
 
     fn playout(&mut self, node: &Node, determinization: &Determinization) -> (u32, u32) {
         debug_assert!(
-            determinization.is_consistent(&node.simultaneous_state.get_state()),
+            determinization.is_consistent(node.simultaneous_state.get_state()),
             "Inconsistent state with the determination:\nConsumed cards:\nSouth: {:?}\nNorth: {:?}\nDeterminization: {}",
             &node.simultaneous_state.get_state().get_consumed_cards(PlayerId::South),
             &node.simultaneous_state.get_state().get_consumed_cards(PlayerId::North),
@@ -576,16 +576,16 @@ impl Traverser {
 
         while !state.is_end() {
             let p_act =
-                self.choose_random_player_action(&mut state, PlayerId::South, p_state.get_hands());
+                self.choose_random_player_action(&state, PlayerId::South, p_state.get_hands());
             let o_act =
-                self.choose_random_player_action(&mut state, PlayerId::North, o_state.get_hands());
+                self.choose_random_player_action(&state, PlayerId::North, o_state.get_hands());
 
             engine::update_state(&mut state, &p_act, &o_act);
             engine::update_player_state(&state, &mut p_state, &p_act);
             engine::update_player_state(&state, &mut o_state, &o_act);
         }
         debug!("Playout result: {}", state);
-        return state.board.get_scores();
+        state.board.get_scores()
     }
 
     fn choose_random_player_action(
@@ -609,13 +609,13 @@ impl Traverser {
         let legal_actions = node.legal_actions.get_or_init(|| {
             if !node.simultaneous_state.action_is_filled(self.player_id) {
                 self.precalculate_valid_actions(
-                    &node.simultaneous_state.get_state(),
+                    node.simultaneous_state.get_state(),
                     determinization.get_cards(self.player_id),
                     self.player_id,
                 )
             } else {
                 self.precalculate_valid_actions(
-                    &node.simultaneous_state.get_state(),
+                    node.simultaneous_state.get_state(),
                     determinization.get_cards(self.player_id.another()),
                     self.player_id.another(),
                 )
@@ -627,7 +627,7 @@ impl Traverser {
         assert_lt!(node.child_nodes.len(), legal_actions.len());
         // There are other legal actions which have never selected.
         // Select one of them first.
-        let filtered_actions = Self::get_filtered_actions(legal_actions, &determinization);
+        let filtered_actions = Self::get_filtered_actions(legal_actions, determinization);
         let mut expanding_action: Option<NodeAction> = None;
         for act in filtered_actions {
             if !node.child_nodes.contains_key(act) {
@@ -637,7 +637,7 @@ impl Traverser {
         }
         let expanding_action = expanding_action.unwrap_or_else(|| {
             let mut s = "Filtered actions: [".to_string();
-            for act in Self::get_filtered_actions(legal_actions, &determinization) {
+            for act in Self::get_filtered_actions(legal_actions, determinization) {
                 s += &format!("{}, ", act);
             }
             s += "]\n";
@@ -714,7 +714,7 @@ impl Traverser {
             Some(v) => v,
         };
         let filtered_actions: Vec<&NodeAction> =
-            Self::get_filtered_actions(legal_actions, &determinization).collect();
+            Self::get_filtered_actions(legal_actions, determinization).collect();
         for act in filtered_actions {
             if !node.child_nodes.contains_key(act) {
                 // This node doesn't have a child node for `act` yet.
@@ -976,7 +976,7 @@ mod tests {
 
         // All child node should be expanded at this point.
         // So additional iteration doesn't add a child node to the root node.
-        let mut determinization = determinization.clone();
+        let mut determinization = determinization;
         traverser.iterate(&mut root_node, &mut determinization);
         assert_eq!(5, root_node.child_nodes.len());
     }
