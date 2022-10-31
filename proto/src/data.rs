@@ -57,9 +57,21 @@ impl Display for Scores {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
+pub enum TimeControl {
+    /// Players can spend as much as time they want.
+    #[default]
+    Infinite,
+
+    /// Players can spend `time_limit_in_seconds` seconds for each action.
+    /// If a player exceeds the time limit, the player loses.
+    PerAction { time_limit_in_seconds: u32 },
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct GameInfo {
     pub game_id: GameId,
+    pub time_control: TimeControl,
     pub board: Board,
 }
 

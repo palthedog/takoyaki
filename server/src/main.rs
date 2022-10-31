@@ -3,6 +3,7 @@ use clap::{
     Parser,
 };
 use log::*;
+use proto::TimeControl;
 use rand_mt::Mt64;
 use std::{
     path::PathBuf,
@@ -54,6 +55,10 @@ pub struct ServerArgs {
     /// a directory path where holds all card data. no need to specify for many cases.
     #[clap(long, value_parser, default_value_t = String::from("data/cards"))]
     card_dir: String,
+
+    /// Specify the time limit in seconds.
+    #[clap(long, short, value_parser)]
+    time_limit: Option<u32>,
 }
 
 fn main() {
@@ -74,6 +79,7 @@ async fn create_session_loop(
     context: Arc<Context>,
     board: Board,
     seed: u64,
+    args: ServerArgs,
 ) -> Sender<ClientConnection> {
     let mut rng = Mt64::from(seed);
     let (sender, mut receiver): (Sender<ClientConnection>, Receiver<ClientConnection>) =
@@ -98,6 +104,12 @@ async fn create_session_loop(
             let context = context.clone();
             let stats_counter = stats_counter.clone();
             let print_interval = print_interval.clone();
+            let time_control = match args.time_limit {
+                Some(secs) => TimeControl::PerAction {
+                    time_limit_in_seconds: secs,
+                },
+                None => TimeControl::Infinite,
+            };
             tokio::spawn(async move {
                 let context = context;
                 let board = board;
@@ -107,6 +119,7 @@ async fn create_session_loop(
                 let session = Arc::new(GameSession::new(
                     context,
                     Arc::new(board),
+                    time_control,
                     client_south,
                     client_north,
                     rng,
@@ -143,7 +156,8 @@ async fn run_server_async(context: Context, args: ServerArgs) {
     info!("Listening at localhost:{}", args.port);
     let board = engine::load_board(&args.board_path);
 
-    let client_sender = create_session_loop(shared_context.clone(), board, rng.next_u64()).await;
+    let client_sender =
+        create_session_loop(shared_context.clone(), board, rng.next_u64(), args).await;
     loop {
         debug!("Waiting for a new client.");
         match listener.accept().await {

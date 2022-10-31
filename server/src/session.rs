@@ -41,6 +41,7 @@ use crate::stats::NamedScore;
 pub struct GameSession {
     context: Arc<Context>,
     board: Arc<Board>,
+    time_control: TimeControl,
     client_south: Arc<Mutex<ClientConnection>>,
     client_north: Arc<Mutex<ClientConnection>>,
 }
@@ -49,6 +50,7 @@ impl GameSession {
     pub fn new(
         context: Arc<Context>,
         board: Arc<Board>,
+        time_control: TimeControl,
         mut client_south: ClientConnection,
         mut client_north: ClientConnection,
         _rng: Mt64,
@@ -58,6 +60,7 @@ impl GameSession {
         Self {
             context,
             board,
+            time_control,
             client_south: Arc::new(Mutex::new(client_south)),
             client_north: Arc::new(Mutex::new(client_north)),
         }
@@ -67,14 +70,18 @@ impl GameSession {
         info!("New game session is started.");
 
         let board = self.board.clone();
+        let time_control = self.time_control.clone();
         let south = self.client_south.clone();
         let ctx = self.context.clone();
-        let h_ps = tokio::spawn(async move { Self::init_player(ctx, board, south).await });
+        let h_ps =
+            tokio::spawn(async move { Self::init_player(ctx, board, time_control, south).await });
 
         let board = self.board.clone();
+        let time_control = self.time_control.clone();
         let north = self.client_north.clone();
         let ctx = self.context.clone();
-        let h_pn = tokio::spawn(async move { Self::init_player(ctx, board, north).await });
+        let h_pn =
+            tokio::spawn(async move { Self::init_player(ctx, board, time_control, north).await });
 
         let mut north_state: PlayerCardState = match h_pn.await {
             Ok(Ok(v)) => v,
@@ -154,22 +161,28 @@ impl GameSession {
     async fn init_player(
         context: Arc<Context>,
         board: Arc<Board>,
+        time_control: TimeControl,
         client: Arc<Mutex<ClientConnection>>,
     ) -> Result<PlayerCardState, Error> {
         let mut client = client.lock().await;
 
-        let mut deck_ids = Self::get_deck(board, &mut client).await?;
+        let mut deck_ids = Self::get_deck(board, time_control, &mut client).await?;
         let state = Self::deal_hands(&context, &mut deck_ids, &mut client).await?;
         Ok(state)
     }
 
-    async fn get_deck(board: Arc<Board>, client: &mut ClientConnection) -> Result<Vec<u32>, Error> {
+    async fn get_deck(
+        board: Arc<Board>,
+        time_control: TimeControl,
+        client: &mut ClientConnection,
+    ) -> Result<Vec<u32>, Error> {
         client
             .send_response(&TakoyakiResponse::Manmenmi(
                 // TODO: Support multiple types of game with other boards.
                 ManmenmiResponse {
                     available_games: vec![GameInfo {
                         game_id: 0,
+                        time_control,
                         board: proto::Board::from(board.as_ref()),
                     }],
                 },
