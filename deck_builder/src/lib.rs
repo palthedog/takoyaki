@@ -437,5 +437,5 @@ pub fn train_deck<'p, 'c: 'p>(args: DeckBuilderArgs) {
 
     let ids = engine::load_deck(&args.inventory_path);
     let card_map = ids.iter().map(|id| (*id, context.get_card(*id))).collect();
-    DeckBuilder::new(&context, board.clone(), args, card_map).run(&mut *player, &mut *opponent);
+    DeckBuilder::new(&context, board, args, card_map).run(&mut *player, &mut *opponent);
 }

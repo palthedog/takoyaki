@@ -59,6 +59,10 @@ impl PlayerCardState {
         self.hands.contains(card)
     }
 
+    pub fn get_next_deal_card(&self) -> &Card {
+        self.deck.last().unwrap()
+    }
+
     // We may want a randomized version later for random simulation.
     pub fn draw_card(&mut self) {
         match self.deck.pop() {
@@ -128,6 +132,10 @@ impl State {
             player_consumed_cards,
             opponent_consumed_cards,
         }
+    }
+
+    pub fn get_turn(&self) -> i32 {
+        self.turn
     }
 
     pub fn is_end(&self) -> bool {

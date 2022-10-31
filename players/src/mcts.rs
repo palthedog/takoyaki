@@ -26,10 +26,7 @@ use engine::{
 };
 
 use super::{
-    utils::{
-        self,
-        append_valid_actions,
-    },
+    utils::append_valid_actions,
     Player,
 };
 
@@ -113,23 +110,13 @@ impl Statistic {
 
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-enum ChanceAction {
-    DealInitialHand(PlayerId, [Card; engine::HAND_SIZE]),
-
-    DealCard(PlayerId, Card),
-}
+enum ChanceAction {}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum NodeAction {
     Root,
     PlayerAction(PlayerId, Action),
-    ChanceAction(ChanceAction),
-}
-
-impl From<ChanceAction> for NodeAction {
-    fn from(c: ChanceAction) -> Self {
-        NodeAction::ChanceAction(c)
-    }
+    DealCard(PlayerId, Card),
 }
 
 impl Display for NodeAction {
@@ -137,7 +124,7 @@ impl Display for NodeAction {
         match self {
             NodeAction::Root => write!(f, "RootNode"),
             NodeAction::PlayerAction(pid, act) => write!(f, "PlayerAction({}, {})", pid, act),
-            NodeAction::ChanceAction(_) => write!(f, "ChanceNode"),
+            NodeAction::DealCard(pid, card) => write!(f, "DealCard: {} {}", pid, card),
         }
     }
 }
@@ -289,7 +276,7 @@ impl SimultaneousState {
                 assert!(north_action.is_none());
                 north_action = Some(act);
             }
-            NodeAction::ChanceAction(_) => todo!(),
+            NodeAction::DealCard(_pid, _card) => todo!(),
             NodeAction::Root => todo!(),
         }
         match (south_action, north_action) {
@@ -326,7 +313,7 @@ impl Display for SimultaneousState {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 struct Node {
     traverser_player_id: PlayerId,
     simultaneous_state: SimultaneousState,
@@ -366,56 +353,99 @@ impl Node {
         self.simultaneous_state.is_end()
     }
 
-    fn get_next_player_id(&self) -> PlayerId {
+    fn is_pure_state(&self) -> bool {
         match self.action {
-            NodeAction::PlayerAction(player_id, _) => player_id.another(),
-            NodeAction::Root => self.traverser_player_id,
-            NodeAction::ChanceAction(_) => todo!(),
+            NodeAction::Root => true,
+            NodeAction::PlayerAction(pid, _) => {
+                pid != self.traverser_player_id
+                    && self.simultaneous_state.get_turn() == engine::TURN_COUNT
+            }
+            NodeAction::DealCard(pid, _) => pid != self.traverser_player_id,
         }
     }
 
     fn get_prev_player_id(&self) -> PlayerId {
         match self.action {
+            NodeAction::Root => unimplemented!(),
             NodeAction::PlayerAction(player_id, _) => player_id,
-            NodeAction::Root => todo!(),
-            NodeAction::ChanceAction(_) => todo!(),
+            NodeAction::DealCard(player_id, _) => player_id,
         }
     }
 
-    fn get_legal_actions_for_hands(
+    fn get_legal_actions(&mut self, determinization: &Determinization) -> Vec<NodeAction> {
+        assert_lt!(
+            self.simultaneous_state.state.get_turn(),
+            engine::TURN_COUNT,
+            "There shouldn't be any child ndoes since this node is a terminal node."
+        );
+        match self.action {
+            NodeAction::Root => {
+                self.get_legal_player_actions(self.traverser_player_id, determinization)
+            }
+            NodeAction::PlayerAction(pid, _) => {
+                if pid == self.traverser_player_id {
+                    // Opponent's action.
+                    self.get_legal_player_actions(pid.another(), determinization)
+                } else {
+                    // Next node would be deal action
+                    self.get_deal_action(pid.another(), determinization)
+                }
+            }
+            NodeAction::DealCard(pid, _) => {
+                if pid == self.traverser_player_id {
+                    self.get_deal_action(pid.another(), determinization)
+                } else {
+                    self.get_legal_player_actions(pid.another(), determinization)
+                }
+            }
+        }
+    }
+
+    fn get_legal_player_actions(
         &mut self,
+        player_id: PlayerId,
         determinization: &Determinization,
     ) -> Vec<NodeAction> {
-        let next_pid = self.get_next_player_id();
-        let hands = determinization.get_cards(next_pid).get_hands();
+        let hands = determinization.get_cards(player_id).get_hands();
 
         let mut v = vec![];
         for c in hands {
-            v.append(&mut self.get_legal_actions_for_card(next_pid, c));
+            let actions = self.get_legal_actions_for_card(player_id, c);
+            for act in actions {
+                v.push(act.clone());
+            }
         }
         v
     }
 
-    fn get_legal_actions_for_card<'a>(
-        &mut self,
-        next_pid: PlayerId,
-        card: &Card,
-    ) -> Vec<NodeAction> {
-        // TODO: caching!!
-
+    fn get_legal_actions_for_card(&mut self, next_pid: PlayerId, card: &Card) -> &Vec<NodeAction> {
         assert!(!self.simultaneous_state.action_is_filled(next_pid));
+        let entry = self.legal_actions.entry(card.clone()).or_insert_with(|| {
+            let mut actions: Vec<Action> = vec![];
+            append_valid_actions(
+                self.simultaneous_state.get_state(),
+                &[card.clone()],
+                next_pid,
+                &mut actions,
+            );
+            actions
+                .into_iter()
+                .map(|act| NodeAction::PlayerAction(next_pid, act))
+                .collect()
+        });
+        entry
+    }
 
-        let mut actions: Vec<Action> = vec![];
-        append_valid_actions(
-            &self.simultaneous_state.get_state(),
-            &vec![card.clone()],
-            next_pid,
-            &mut actions,
-        );
-        actions
-            .into_iter()
-            .map(|act| NodeAction::PlayerAction(next_pid, act))
-            .collect()
+    fn get_deal_action(
+        &mut self,
+        player_id: PlayerId,
+        determinization: &Determinization,
+    ) -> Vec<NodeAction> {
+        let cards = determinization.get_cards(player_id);
+        vec![NodeAction::DealCard(
+            player_id,
+            cards.get_next_deal_card().clone(),
+        )]
     }
 }
 
@@ -465,23 +495,30 @@ impl Traverser {
             node = self.select_child_node(node, determinization);
             history.push(node.action.clone());
 
-            match &node.action {
-                NodeAction::Root => unimplemented!(),
-                NodeAction::PlayerAction(pid, act) => {
-                    assert_eq!(pid, &node.get_prev_player_id());
-                    let player_cards = determinization.get_cards_as_mut(*pid);
-                    let consumed_card = act.get_consumed_card();
-                    player_cards.consume_card(consumed_card);
-
-                    // TODO: Move it under case ChanceAction
-                    if node.simultaneous_state.get_turn() != engine::TURN_COUNT - 1 {
-                        player_cards.draw_card();
-                    }
-                }
-                NodeAction::ChanceAction(_) => todo!(),
-            };
+            self.update_determinization_by_node_action(&node.action, determinization);
         }
         (node, history)
+    }
+
+    fn update_determinization_by_node_action(
+        &self,
+        node_action: &NodeAction,
+        determinization: &mut Determinization,
+    ) {
+        // Update determinization by actions.
+        match node_action {
+            NodeAction::Root => unimplemented!(),
+            NodeAction::PlayerAction(pid, act) => {
+                let player_cards = determinization.get_cards_as_mut(*pid);
+                let consumed_card = act.get_consumed_card();
+                player_cards.consume_card(consumed_card);
+            }
+            NodeAction::DealCard(pid, card) => {
+                let player_cards = determinization.get_cards_as_mut(*pid);
+                assert_eq!(card, player_cards.get_next_deal_card());
+                player_cards.draw_card();
+            }
+        };
     }
 
     fn search_action(
@@ -513,8 +550,8 @@ impl Traverser {
                 .child_nodes
                 .values()
                 .for_each(|c| match &c.action {
-                    NodeAction::Root => todo!(),
-                    NodeAction::ChanceAction(_) => todo!(),
+                    NodeAction::Root => unimplemented!(),
+                    NodeAction::DealCard(_pid, _card) => unimplemented!(),
                     NodeAction::PlayerAction(player, action) => {
                         debug!("{:?} {}", player, action)
                     }
@@ -556,11 +593,6 @@ impl Traverser {
             leaf
         };
 
-        // TODO: Fix a bug
-        // determinization is not updated based on the descending in Expansion.
-        // It means that player's hand isn't updated in the determinization.
-        // We may need to implement chance nodes to fix the issue?
-
         // Simulation
         let result = self.playout(leaf, determinization);
 
@@ -578,7 +610,7 @@ impl Traverser {
         }
     }
 
-    fn playout(&mut self, node: &Node, determinization: &Determinization) -> (u32, u32) {
+    fn playout(&mut self, node: &mut Node, determinization: &mut Determinization) -> (u32, u32) {
         debug_assert!(
             determinization.is_consistent(node.simultaneous_state.get_state()),
             "Inconsistent state with the determination:\nConsumed cards:\nSouth: {:?}\nNorth: {:?}\nDeterminization: {}",
@@ -587,39 +619,19 @@ impl Traverser {
             determinization
         );
 
-        let mut simul_state = node.simultaneous_state.clone();
-        debug!("Playout for {}", simul_state);
-        let mut p_state = determinization.get_cards(PlayerId::South).clone();
-        let mut o_state = determinization.get_cards(PlayerId::North).clone();
-        let south_filled = node.simultaneous_state.action_is_filled(PlayerId::South);
-        let north_filled = node.simultaneous_state.action_is_filled(PlayerId::North);
-        if !south_filled && north_filled {
-            let rand_act = self.choose_random_player_action(
-                simul_state.get_state(),
-                PlayerId::South,
-                p_state.get_hands(),
-            );
-            p_state.consume_card(rand_act.get_consumed_card());
-            if simul_state.get_turn() != engine::TURN_COUNT - 1 {
-                p_state.draw_card();
-            }
-            simul_state =
-                simul_state.with_action(NodeAction::PlayerAction(PlayerId::South, rand_act));
-        }
-        if !north_filled && south_filled {
-            let rand_act = self.choose_random_player_action(
-                simul_state.get_state(),
-                PlayerId::North,
-                o_state.get_hands(),
-            );
-            o_state.consume_card(rand_act.get_consumed_card());
-            if simul_state.get_turn() != engine::TURN_COUNT - 1 {
-                o_state.draw_card();
-            }
-            simul_state =
-                simul_state.with_action(NodeAction::PlayerAction(PlayerId::North, rand_act));
+        let mut node: Node = node.clone();
+
+        // Simulate the game till intermidiate state is solved.
+        while !node.is_pure_state() {
+            let acts = node.get_legal_actions(determinization);
+            let rand_action = acts.choose(&mut self.rng).unwrap();
+            node = self.create_child_node(&node, rand_action);
+            self.update_determinization_by_node_action(rand_action, determinization);
         }
 
+        let mut p_state = determinization.get_cards(PlayerId::South).clone();
+        let mut o_state = determinization.get_cards(PlayerId::North).clone();
+        let simul_state = node.simultaneous_state.clone();
         // Both actions shouldn't be filled at this point.
         assert!(!simul_state.action_is_filled(PlayerId::South));
         assert!(!simul_state.action_is_filled(PlayerId::North));
@@ -657,7 +669,7 @@ impl Traverser {
         node: &'a mut Node,
         determinization: &mut Determinization,
     ) -> &'a mut Node {
-        let legal_actions = node.get_legal_actions_for_hands(&determinization);
+        let legal_actions = node.get_legal_actions(determinization);
 
         debug!("# of legal actions: {}", legal_actions.len());
         // There can be other legal actions which have never selected.
@@ -669,7 +681,8 @@ impl Traverser {
                 break;
             }
         }
-        let expanding_action = expanding_action.unwrap_or_else(|| {
+        // The leaf node is going to be expanded with this action.
+        let action_for_expanding = expanding_action.unwrap_or_else(|| {
             let mut s = "Couldn't find unvisited nodes from legal actions: [".to_string();
             for act in legal_actions {
                 s += &format!("{}, ", act);
@@ -678,46 +691,31 @@ impl Traverser {
             s += &format!("node: {}", node);
             panic!("{}", s);
         });
-        match &expanding_action {
-            NodeAction::Root => unimplemented!(),
-            NodeAction::PlayerAction(pid, act) => {
-                let player_cards = determinization.get_cards_as_mut(*pid);
-                player_cards.consume_card(act.get_consumed_card());
-                // TODO: Move it under case ChanceAction
-                if node.simultaneous_state.get_turn() != engine::TURN_COUNT - 1 {
-                    player_cards.draw_card();
-                }
-
-                let new_node = self.create_child_node(node, &expanding_action);
-
-                // TODO: There should be better way...?
-                node.child_nodes.insert(expanding_action.clone(), new_node);
-                node.child_nodes.get_mut(&expanding_action).unwrap()
-            }
-            NodeAction::ChanceAction(_) => todo!(),
-        }
+        self.update_determinization_by_node_action(&action_for_expanding, determinization);
+        let new_node = self.create_child_node(node, &action_for_expanding);
+        node.child_nodes
+            .insert(action_for_expanding.clone(), new_node);
+        node.child_nodes.get_mut(&action_for_expanding).unwrap()
     }
 
     fn create_child_node(&self, node: &Node, action: &NodeAction) -> Node {
-        let new_simultaneous_state = node.simultaneous_state.clone().with_action(action.clone());
-        Node::new(
-            node.get_next_player_id(),
-            new_simultaneous_state,
-            action.clone(),
-        )
-    }
-
-    fn get_filtered_actions<'a>(
-        actions: &'a [NodeAction],
-        determinization: &'a Determinization,
-    ) -> impl Iterator<Item = &'a NodeAction> {
-        actions.iter().filter(|a| match a {
+        match action {
             NodeAction::Root => unimplemented!(),
-            NodeAction::PlayerAction(pid, act) => determinization
-                .get_cards(*pid)
-                .has_card_in_hands(act.get_consumed_card()),
-            NodeAction::ChanceAction(_) => todo!(),
-        })
+            NodeAction::PlayerAction(_pid, _act) => {
+                let new_simultaneous_state =
+                    node.simultaneous_state.clone().with_action(action.clone());
+                Node::new(
+                    node.traverser_player_id,
+                    new_simultaneous_state,
+                    action.clone(),
+                )
+            }
+            NodeAction::DealCard(_pid, _card) => Node::new(
+                node.traverser_player_id,
+                node.simultaneous_state.clone(),
+                action.clone(),
+            ),
+        }
     }
 
     fn get_filtered_nodes<'a>(
@@ -725,19 +723,11 @@ impl Traverser {
         node: &'a mut Node,
         determinization: &Determinization,
     ) -> Vec<&'a mut Node> {
+        let legal_actions = node.get_legal_actions(determinization);
         node.child_nodes
-            .values_mut()
-            .filter(|n| match &n.action {
-                NodeAction::PlayerAction(player_id, action) => determinization
-                    .get_cards(*player_id)
-                    .get_hands()
-                    .contains(action.get_consumed_card()),
-                NodeAction::ChanceAction(_) => todo!(),
-                NodeAction::Root => {
-                    panic!("There shouldn't be a child node with a Root action")
-                }
-            })
-            // TODO: It might be faster to return an iterator intead of a vector.
+            .iter_mut()
+            .filter(|(act, _child)| legal_actions.contains(act))
+            .map(|(_k, v)| v)
             .collect()
     }
 
@@ -746,7 +736,7 @@ impl Traverser {
             return true;
         }
 
-        let legal_actions = node.get_legal_actions_for_hands(determinization);
+        let legal_actions = node.get_legal_actions(determinization);
         for act in legal_actions {
             if !node.child_nodes.contains_key(&act) {
                 // This node doesn't have a child node for `act` yet.
@@ -794,40 +784,6 @@ impl Traverser {
         let visits = child.statistic.total_cnt;
         let explore: f64 = (log_n_sum / visits as f64).sqrt();
         value + C * explore
-    }
-
-    fn precalculate_valid_actions(
-        &self,
-        state: &State,
-        cards_state: &PlayerCardState,
-        player_id: PlayerId,
-    ) -> Vec<NodeAction> {
-        // TODO: Fix a bug.
-        // if the traverser descended the tree, card_state.get_hands() may return cards which already consumed?
-
-        let mut valid_actions = vec![];
-        utils::append_valid_actions(
-            state,
-            cards_state.get_hands(),
-            player_id,
-            &mut valid_actions,
-        );
-
-        if player_id != self.player_id {
-            // For the opponent player, list up actions also for cards in deck so that
-            // future playouts (which may have different determinized hands) can refer the precalculated actions.
-            utils::append_valid_actions(
-                state,
-                cards_state.get_deck(),
-                player_id,
-                &mut valid_actions,
-            );
-        }
-
-        valid_actions
-            .iter()
-            .map(|a| NodeAction::PlayerAction(player_id, a.clone()))
-            .collect()
     }
 
     fn filter_cards(cards: &mut Vec<Card>, remove_card_ids: &[u32]) {
