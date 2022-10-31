@@ -6,6 +6,7 @@ use clap::{
     Subcommand,
     ValueHint,
 };
+use git_version::git_version;
 use log::{
     error,
     info,
@@ -27,6 +28,8 @@ use proto::{
     GameInfo,
     WireFormat,
 };
+
+const GIT_VERSION: &str = git_version!();
 
 #[derive(Parser)]
 pub struct ClientArgs {
@@ -83,6 +86,8 @@ fn main() {
         env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
     );
 
+    info!("git version: {}", GIT_VERSION);
+
     let args = ClientArgs::parse();
 
     let deck_name: String = args
@@ -94,11 +99,16 @@ fn main() {
         .unwrap();
     let (context, deck) = init_common(&args);
     match args.command {
-        Commands::Rand => run_rand(&args.server, context, format!("rand/{}", deck_name), deck),
+        Commands::Rand => run_rand(
+            &args.server,
+            context,
+            format!("rand/{}@{}", deck_name, GIT_VERSION),
+            deck,
+        ),
         Commands::Mcts(m) => run_mcts(
             &args.server,
             context,
-            format!("mcts-{}/{}", m.iterations, deck_name),
+            format!("mcts-{}/{}@{}", m.iterations, deck_name, GIT_VERSION),
             deck,
             m,
         ),

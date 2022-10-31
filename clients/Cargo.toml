@@ -22,3 +22,4 @@ rand_distr = "0.4.3"
 rand_mt = "4.2.0"
 textwrap = "0.15.1"
 tokio = {version = "1.21.2", features = ["rt", "rt-multi-thread", "macros", "net", "sync", "time", "io-util"]}
+git-version = "0.3.5"

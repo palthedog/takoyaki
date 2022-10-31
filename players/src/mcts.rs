@@ -704,6 +704,9 @@ impl Traverser {
     }
 
     fn is_leaf_node(&mut self, node: &mut Node, determinization: &Determinization) -> bool {
+        if node.is_terminal() {
+            return true;
+        }
         let legal_actions = node.legal_actions.get();
         let legal_actions = match legal_actions {
             // This node has never be expanded.
