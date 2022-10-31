@@ -1,7 +1,6 @@
 use itertools::Itertools;
 use log::*;
 use more_asserts::*;
-use once_cell::sync::OnceCell;
 use rand::{
     seq::SliceRandom,
     Rng,
@@ -329,28 +328,37 @@ impl Display for SimultaneousState {
 
 #[derive(Debug, PartialEq)]
 struct Node {
+    traverser_player_id: PlayerId,
     simultaneous_state: SimultaneousState,
     action: NodeAction,
 
     statistic: Statistic,
 
     child_nodes: HashMap<NodeAction, Node>,
-    legal_actions: OnceCell<Vec<NodeAction>>,
+
+    /// Lists of legal actions based on the consumed hands.
+    /// The entry may not exist if the traverser has never accessed the value.
+    legal_actions: HashMap<Card, Vec<NodeAction>>,
 }
 
 impl Node {
-    fn new(simultaneous_state: SimultaneousState, action: NodeAction) -> Self {
+    fn new(
+        traverser_player_id: PlayerId,
+        simultaneous_state: SimultaneousState,
+        action: NodeAction,
+    ) -> Self {
         assert!(
             !simultaneous_state.both_actions_filled(),
             "If all actions are filled, we should create the new node with a updated State."
         );
 
         Self {
+            traverser_player_id,
             simultaneous_state,
             action,
             statistic: Statistic::default(),
             child_nodes: HashMap::new(),
-            legal_actions: OnceCell::default(),
+            legal_actions: HashMap::new(),
         }
     }
 
@@ -358,12 +366,56 @@ impl Node {
         self.simultaneous_state.is_end()
     }
 
-    fn get_player_id(&self) -> PlayerId {
+    fn get_next_player_id(&self) -> PlayerId {
+        match self.action {
+            NodeAction::PlayerAction(player_id, _) => player_id.another(),
+            NodeAction::Root => self.traverser_player_id,
+            NodeAction::ChanceAction(_) => todo!(),
+        }
+    }
+
+    fn get_prev_player_id(&self) -> PlayerId {
         match self.action {
             NodeAction::PlayerAction(player_id, _) => player_id,
             NodeAction::Root => todo!(),
             NodeAction::ChanceAction(_) => todo!(),
         }
+    }
+
+    fn get_legal_actions_for_hands(
+        &mut self,
+        determinization: &Determinization,
+    ) -> Vec<NodeAction> {
+        let next_pid = self.get_next_player_id();
+        let hands = determinization.get_cards(next_pid).get_hands();
+
+        let mut v = vec![];
+        for c in hands {
+            v.append(&mut self.get_legal_actions_for_card(next_pid, c));
+        }
+        v
+    }
+
+    fn get_legal_actions_for_card<'a>(
+        &mut self,
+        next_pid: PlayerId,
+        card: &Card,
+    ) -> Vec<NodeAction> {
+        // TODO: caching!!
+
+        assert!(!self.simultaneous_state.action_is_filled(next_pid));
+
+        let mut actions: Vec<Action> = vec![];
+        append_valid_actions(
+            &self.simultaneous_state.get_state(),
+            &vec![card.clone()],
+            next_pid,
+            &mut actions,
+        );
+        actions
+            .into_iter()
+            .map(|act| NodeAction::PlayerAction(next_pid, act))
+            .collect()
     }
 }
 
@@ -416,7 +468,7 @@ impl Traverser {
             match &node.action {
                 NodeAction::Root => unimplemented!(),
                 NodeAction::PlayerAction(pid, act) => {
-                    assert_eq!(pid, &node.get_player_id());
+                    assert_eq!(pid, &node.get_prev_player_id());
                     let player_cards = determinization.get_cards_as_mut(*pid);
                     let consumed_card = act.get_consumed_card();
                     player_cards.consume_card(consumed_card);
@@ -439,7 +491,7 @@ impl Traverser {
         iterations: usize,
         time_limit: &Duration,
     ) -> Action {
-        let mut root_node = self.create_root_node(state);
+        let mut root_node = self.create_root_node(self.player_id, state);
         let timer = Instant::now();
         for n in 0..iterations {
             let mut determinization = Determinization::new(
@@ -605,39 +657,21 @@ impl Traverser {
         node: &'a mut Node,
         determinization: &mut Determinization,
     ) -> &'a mut Node {
-        // If we've never expand this node, save the legal actions to the node.
-        let legal_actions = node.legal_actions.get_or_init(|| {
-            if !node.simultaneous_state.action_is_filled(self.player_id) {
-                self.precalculate_valid_actions(
-                    node.simultaneous_state.get_state(),
-                    determinization.get_cards(self.player_id),
-                    self.player_id,
-                )
-            } else {
-                self.precalculate_valid_actions(
-                    node.simultaneous_state.get_state(),
-                    determinization.get_cards(self.player_id.another()),
-                    self.player_id.another(),
-                )
-            }
-        });
+        let legal_actions = node.get_legal_actions_for_hands(&determinization);
 
         debug!("# of legal actions: {}", legal_actions.len());
-
-        assert_lt!(node.child_nodes.len(), legal_actions.len());
-        // There are other legal actions which have never selected.
+        // There can be other legal actions which have never selected.
         // Select one of them first.
-        let filtered_actions = Self::get_filtered_actions(legal_actions, determinization);
         let mut expanding_action: Option<NodeAction> = None;
-        for act in filtered_actions {
+        for act in &legal_actions {
             if !node.child_nodes.contains_key(act) {
                 let _ = expanding_action.insert(act.clone());
                 break;
             }
         }
         let expanding_action = expanding_action.unwrap_or_else(|| {
-            let mut s = "Filtered actions: [".to_string();
-            for act in Self::get_filtered_actions(legal_actions, determinization) {
+            let mut s = "Couldn't find unvisited nodes from legal actions: [".to_string();
+            for act in legal_actions {
                 s += &format!("{}, ", act);
             }
             s += "]\n";
@@ -666,7 +700,11 @@ impl Traverser {
 
     fn create_child_node(&self, node: &Node, action: &NodeAction) -> Node {
         let new_simultaneous_state = node.simultaneous_state.clone().with_action(action.clone());
-        Node::new(new_simultaneous_state, action.clone())
+        Node::new(
+            node.get_next_player_id(),
+            new_simultaneous_state,
+            action.clone(),
+        )
     }
 
     fn get_filtered_actions<'a>(
@@ -707,16 +745,10 @@ impl Traverser {
         if node.is_terminal() {
             return true;
         }
-        let legal_actions = node.legal_actions.get();
-        let legal_actions = match legal_actions {
-            // This node has never be expanded.
-            None => return true,
-            Some(v) => v,
-        };
-        let filtered_actions: Vec<&NodeAction> =
-            Self::get_filtered_actions(legal_actions, determinization).collect();
-        for act in filtered_actions {
-            if !node.child_nodes.contains_key(act) {
+
+        let legal_actions = node.get_legal_actions_for_hands(determinization);
+        for act in legal_actions {
+            if !node.child_nodes.contains_key(&act) {
                 // This node doesn't have a child node for `act` yet.
                 return true;
             }
@@ -755,7 +787,7 @@ impl Traverser {
         const C: f64 = std::f64::consts::SQRT_2;
         let mut value: f64 = child.statistic.get_expected_value();
 
-        if child.get_player_id() == PlayerId::North {
+        if child.get_prev_player_id() == PlayerId::North {
             value = -value;
         }
 
@@ -836,8 +868,12 @@ impl Traverser {
     }
 
     /// Creates a node from an actual game state (visible from the player).
-    fn create_root_node(&mut self, state: &State) -> Node {
-        Node::new(SimultaneousState::new(state.clone()), NodeAction::Root)
+    fn create_root_node(&mut self, traverser_player_id: PlayerId, state: &State) -> Node {
+        Node::new(
+            traverser_player_id,
+            SimultaneousState::new(state.clone()),
+            NodeAction::Root,
+        )
     }
 }
 
@@ -944,13 +980,10 @@ mod tests {
         let mut traverser = Traverser::new(&context, PlayerId::South, player_initial_deck, SEED);
 
         let state = State::new(board, 0, 0, 0, vec![], vec![]);
-        let mut root_node = traverser.create_root_node(&state);
+        let mut root_node = traverser.create_root_node(PlayerId::South, &state);
 
         // The root node is still a leaf node.
         assert!(!root_node.is_terminal());
-
-        // Legal actions are not computed yet.
-        assert!(root_node.legal_actions.get().is_none());
 
         let determinization = Determinization::new(
             PlayerCardState::new(PlayerId::South, player_hands.to_vec(), player_deck.to_vec()),
