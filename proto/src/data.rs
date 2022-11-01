@@ -116,7 +116,13 @@ impl From<&engine::Board> for Board {
         for y in 0..h {
             let mut row = Vec::with_capacity(w as usize);
             for x in 0..w {
-                row.push(b.get_cell(engine::BoardPosition { x, y }).into());
+                row.push(
+                    b.get_cell(engine::BoardPosition {
+                        x,
+                        y,
+                    })
+                    .into(),
+                );
             }
             cells.push(row);
         }
@@ -171,14 +177,14 @@ impl From<engine::BoardCell> for BoardCell {
 #[derive(Serialize_repr, Deserialize_repr, Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(i8)]
 pub enum PlayerId {
-    Sourth = 1,
+    South = 1,
     North = -1,
 }
 
 impl From<PlayerId> for engine::PlayerId {
     fn from(val: PlayerId) -> Self {
         match val {
-            PlayerId::Sourth => engine::PlayerId::South,
+            PlayerId::South => engine::PlayerId::South,
             PlayerId::North => engine::PlayerId::North,
         }
     }

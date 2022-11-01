@@ -21,6 +21,7 @@ use proto::{
 use engine::{
     Card,
     Context,
+    PlayerId,
     State,
 };
 
@@ -49,7 +50,7 @@ pub struct Client<P: Player> {
     context: Arc<Context>,
     preferred_format: WireFormat,
     player: P,
-    player_id: PlayerId,
+    player_id: engine::PlayerId,
     game_picker: GamePickerFn,
     game_info: Option<GameInfo>,
 }
@@ -82,7 +83,7 @@ impl<P: Player> Client<P> {
             let mut session = self.join_game_async(host).await?;
             let result = session.start().await?;
             Ok(match self.player_id {
-                PlayerId::Sourth => GameResult {
+                PlayerId::South => GameResult {
                     my_score: result.south_score,
                     opponent_score: result.north_score,
                 },
@@ -155,39 +156,38 @@ impl<'p, P: Player> Session<'p, P> {
                 deck: engine::to_ids(&deck),
             })
             .await?;
-        self.client.player_id = join_game.player_id;
+        self.client.player_id = join_game.player_id.into();
         self.client.game_info = Some(game_info);
 
-        self.client
-            .player
-            .init_game(self.client.player_id.into(), &self.client.context, deck);
+        let board: engine::Board = self.client.game_info.as_ref().unwrap().board.clone().into();
 
-        let hands = self.client.context.get_cards(&join_game.initial_hands);
-        info!("Initial Hand dealed: {}", engine::format_cards(&hands));
-        let need_redeal = self.client.player.need_redeal_hands(&hands);
-        let accept_hands_res = self
-            .send_accept_hands(AcceptHandsRequest {
-                accept: !need_redeal,
-            })
-            .await?;
-
-        let mut state = State::new(
-            self.client.game_info.as_ref().unwrap().board.clone().into(),
-            0,
-            0,
-            0,
-            vec![],
-            vec![],
+        self.client.player.init_game(
+            self.client.player_id.into(),
+            &self.client.context,
+            &board,
+            deck,
         );
-        let mut hands = self.client.context.get_cards(&accept_hands_res.hands);
-        let time_buffer = Duration::from_millis(100);
+
         let time_limit = match self.client.game_info.as_ref().unwrap().time_control {
             TimeControl::Infinite => Duration::MAX,
             TimeControl::PerAction {
                 time_limit_in_seconds,
             } => Duration::from_secs(time_limit_in_seconds.into()),
         };
+        let time_buffer = Duration::from_millis(100);
         let time_limit = time_limit.saturating_sub(time_buffer);
+
+        let hands = self.client.context.get_cards(&join_game.initial_hands);
+        info!("Initial Hand dealed: {}", engine::format_cards(&hands));
+        let need_redeal = self.client.player.need_redeal_hands(&hands, &time_limit);
+        let accept_hands_res = self
+            .send_accept_hands(AcceptHandsRequest {
+                accept: !need_redeal,
+            })
+            .await?;
+
+        let mut state = State::new(board, 0, 0, 0, vec![], vec![]);
+        let mut hands = self.client.context.get_cards(&accept_hands_res.hands);
 
         loop {
             let action = self.client.player.get_action(&state, &hands, &time_limit);
@@ -200,7 +200,7 @@ impl<'p, P: Player> Session<'p, P> {
             hands = self.client.context.get_cards(&res.hands);
 
             let (action_s, action_n) = match self.client.player_id {
-                PlayerId::Sourth => (action, opponent_action),
+                PlayerId::South => (action, opponent_action),
                 PlayerId::North => (opponent_action, action),
             };
 
@@ -224,7 +224,7 @@ impl<'p, P: Player> Session<'p, P> {
             })
             .await;
 
-        let res = match res {
+        let res: ManmenmiResponse = match res {
             Ok(v) => v,
             Err(e) => {
                 return Err(format!("Got error at Manmenmi: {}", e));

@@ -35,7 +35,8 @@ pub struct PlayerCardState {
 }
 
 impl PlayerCardState {
-    pub fn new(player_id: PlayerId, hands: Vec<Card>, deck: Vec<Card>) -> PlayerCardState {
+    pub fn new(player_id: PlayerId, mut hands: Vec<Card>, deck: Vec<Card>) -> PlayerCardState {
+        hands.sort();
         PlayerCardState {
             player_id,
             hands,
@@ -69,6 +70,7 @@ impl PlayerCardState {
             None => panic!("There is no card in the deck."),
             Some(draw) => self.hands.push(draw),
         };
+        self.hands.sort();
         assert_eq!(
             game::HAND_SIZE,
             self.hands.len(),
@@ -88,6 +90,17 @@ impl PlayerCardState {
             "Couldn't find the consumed card from hands.\nconsumed: {}\nhands: {:?}\n",
             card, self.hands
         );
+    }
+
+    pub fn get_all_cards(&self) -> Vec<Card> {
+        let mut v = vec![];
+        for h in self.hands.iter() {
+            v.push(h.clone())
+        }
+        for d in self.deck.iter() {
+            v.push(d.clone())
+        }
+        v
     }
 }
 

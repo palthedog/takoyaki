@@ -4,4 +4,6 @@ reorder_imports = true
 # nightly features...
 imports_layout = "Vertical"
 imports_granularity = "Crate"
-
+# Struct fields should never fit into a single line.
+struct_lit_single_line = false
+use_field_init_shorthand = true

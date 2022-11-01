@@ -6,6 +6,7 @@ use rand_mt::Mt64;
 
 use engine::{
     Action,
+    Board,
     Card,
     Context,
     PlayerId,
@@ -38,11 +39,17 @@ impl Player for RandomPlayer {
         &self.name
     }
 
-    fn init_game(&mut self, player_id: PlayerId, _context: &Context, _deck: Vec<Card>) {
+    fn init_game(
+        &mut self,
+        player_id: PlayerId,
+        _context: &Context,
+        _board: &Board,
+        _deck: Vec<Card>,
+    ) {
         self.player_id = player_id;
     }
 
-    fn need_redeal_hands(&mut self, _dealed_cards: &[Card]) -> bool {
+    fn need_redeal_hands(&mut self, _dealed_cards: &[Card], _time_limit: &Duration) -> bool {
         self.rng.gen_bool(0.5)
     }
 

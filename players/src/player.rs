@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use engine::{
     Action,
+    Board,
     Card,
     Context,
     PlayerId,
@@ -16,10 +17,10 @@ use super::{
 /// The base class for all player implementations.
 pub trait Player {
     fn get_name(&self) -> &str;
-    fn init_game(&mut self, player_id: PlayerId, context: &Context, deck: Vec<Card>);
+    fn init_game(&mut self, player_id: PlayerId, context: &Context, board: &Board, deck: Vec<Card>);
 
     /// It will be called once before the first action.
-    fn need_redeal_hands(&mut self, dealed_cards: &[Card]) -> bool;
+    fn need_redeal_hands(&mut self, dealed_cards: &[Card], time_limit: &Duration) -> bool;
 
     fn get_action(&mut self, state: &State, hands: &[Card], time_limit: &Duration) -> Action;
 }

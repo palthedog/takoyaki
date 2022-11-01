@@ -192,7 +192,10 @@ impl Display for CardImpl {
 
         for y in 0..height {
             for x in 0..width {
-                let pos = CardCellPosition { x, y };
+                let pos = CardCellPosition {
+                    x,
+                    y,
+                };
                 let ch = match self.get_cells(rotation).get(&pos) {
                     Some(cell) => cell.cell_type.to_char(),
                     None => ' ',
@@ -242,14 +245,14 @@ pub fn load_cards(cards_dir: &str) -> HashMap<u32, Card> {
         let path = dir.path();
         let path = path.to_str().unwrap();
         let card = load_card(path);
-        debug!("{}", card);
+        trace!("{}", card);
         cards.insert(card.get_id(), card);
     }
     cards
 }
 
 pub fn load_card(card_path: &str) -> Card {
-    debug!("loading {}", card_path);
+    trace!("loading {}", card_path);
 
     let path = Path::new(card_path);
     let card_id: u32 = path

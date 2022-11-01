@@ -55,7 +55,7 @@ impl GameSession {
         mut client_north: ClientConnection,
         _rng: Mt64,
     ) -> Self {
-        client_south.set_player_id(PlayerId::Sourth);
+        client_south.set_player_id(PlayerId::South);
         client_north.set_player_id(PlayerId::North);
         Self {
             context,
