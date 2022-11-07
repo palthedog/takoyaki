@@ -34,10 +34,18 @@ pub enum PlayerType {
 
 const PLAYER_TYPE_VARIANTS: [PlayerType; 5] = [
     PlayerType::Random,
-    PlayerType::Mcts { iterations: 10 },
-    PlayerType::Mcts { iterations: 100 },
-    PlayerType::Mcts { iterations: 300 },
-    PlayerType::Mcts { iterations: 1000 },
+    PlayerType::Mcts {
+        iterations: 10,
+    },
+    PlayerType::Mcts {
+        iterations: 100,
+    },
+    PlayerType::Mcts {
+        iterations: 300,
+    },
+    PlayerType::Mcts {
+        iterations: 1000,
+    },
 ];
 
 impl clap::ArgEnum for PlayerType {
@@ -48,10 +56,18 @@ impl clap::ArgEnum for PlayerType {
     fn to_possible_value<'a>(&self) -> Option<clap::PossibleValue<'a>> {
         let name = match self {
             PlayerType::Random => "random",
-            PlayerType::Mcts { iterations: 10 } => "mcts-10",
-            PlayerType::Mcts { iterations: 100 } => "mcts-100",
-            PlayerType::Mcts { iterations: 300 } => "mcts-300",
-            PlayerType::Mcts { iterations: 1000 } => "mcts-1000",
+            PlayerType::Mcts {
+                iterations: 10,
+            } => "mcts-10",
+            PlayerType::Mcts {
+                iterations: 100,
+            } => "mcts-100",
+            PlayerType::Mcts {
+                iterations: 300,
+            } => "mcts-300",
+            PlayerType::Mcts {
+                iterations: 1000,
+            } => "mcts-1000",
             _ => panic!(),
         };
         Some(clap::PossibleValue::new(name))
@@ -62,10 +78,13 @@ impl PlayerType {
     pub fn create_player(&self, _context: &Context, seed: u64) -> Box<dyn Player> {
         match self {
             PlayerType::Random => Box::new(random::RandomPlayer::new("rand".into(), seed)),
-            PlayerType::Mcts { iterations } => Box::new(mcts::MctsPlayer::new(
+            PlayerType::Mcts {
+                iterations,
+            } => Box::new(mcts::MctsPlayer::new(
                 format!("mcts-{}", iterations),
                 seed,
                 *iterations,
+                mcts::UCT_CONST_DEFAULT,
             )),
         }
     }

@@ -31,8 +31,12 @@ use super::{
     Player,
 };
 
+// It looks good enough acording to random battles.
+pub const UCT_CONST_DEFAULT: f64 = 0.9;
+
 pub struct MctsPlayer {
     iterations: usize,
+    uct_const: f64,
 
     name: String,
     player_id: PlayerId,
@@ -42,11 +46,12 @@ pub struct MctsPlayer {
 }
 
 impl MctsPlayer {
-    pub fn new(name: String, seed: u64, iterations: usize) -> Self {
+    pub fn new(name: String, seed: u64, iterations: usize, uct_constant: f64) -> Self {
         let rng = Mt64::new(seed);
         MctsPlayer {
             name,
             iterations,
+            uct_const: uct_constant,
             player_id: PlayerId::South,
             traverser: None,
             board: None,
@@ -72,6 +77,7 @@ impl Player for MctsPlayer {
             context,
             player_id,
             deck,
+            self.uct_const,
             self.rng.next_u64(),
         ));
         self.board = Some(board.clone());
@@ -572,6 +578,9 @@ struct Traverser {
     context: Context,
     traverser_player_id: PlayerId,
     my_initial_deck: Vec<Card>,
+
+    uct_const: f64,
+
     rng: Mt64,
 }
 
@@ -580,12 +589,14 @@ impl Traverser {
         context: &Context,
         traverser_player_id: PlayerId,
         player_initial_deck: Vec<Card>,
+        uct_const: f64,
         seed: u64,
     ) -> Self {
         Self {
             context: context.clone(), // TODO: Stop cloning it.
             traverser_player_id,
             my_initial_deck: player_initial_deck,
+            uct_const,
             rng: Mt64::new(seed),
         }
     }
@@ -930,7 +941,7 @@ impl Traverser {
         for (i, child) in filtered_nodes.iter().enumerate() {
             assert_gt!(child.statistic.total_cnt, 0);
             debug!("   {}, {}:", child.action, child.statistic);
-            let ucb1 = Self::calc_ucb1(log_n_sum, child);
+            let ucb1 = Self::calc_ucb1(log_n_sum, self.uct_const, child);
             if ucb1 > max_ucb1 {
                 max_ucb1 = ucb1;
                 max_index = i;
@@ -939,8 +950,7 @@ impl Traverser {
         filtered_nodes.swap_remove(max_index)
     }
 
-    fn calc_ucb1(log_n_sum: f64, child: &Node) -> f64 {
-        const C: f64 = std::f64::consts::SQRT_2;
+    fn calc_ucb1(log_n_sum: f64, c: f64, child: &Node) -> f64 {
         let mut value: f64 = child.statistic.get_expected_value();
 
         if child.get_prev_player_id() == PlayerId::North {
@@ -952,11 +962,11 @@ impl Traverser {
         debug!(
             "     {} + {} * {} = {}",
             value,
-            C,
+            c,
             explore,
-            value + C * explore
+            value + c * explore
         );
-        value + C * explore
+        value + c * explore
     }
 
     fn filter_cards(cards: &mut Vec<Card>, remove_card_ids: &[u32]) {
@@ -1119,7 +1129,13 @@ mod tests {
         let (opponent_hands, opponent_deck) = opponent_initial_deck.split_at(engine::HAND_SIZE);
 
         let player_initial_deck = context.all_cards.values().cloned().collect_vec();
-        let mut traverser = Traverser::new(&context, PlayerId::South, player_initial_deck, SEED);
+        let mut traverser = Traverser::new(
+            &context,
+            PlayerId::South,
+            player_initial_deck,
+            std::f64::consts::SQRT_2,
+            SEED,
+        );
 
         let state = State::new(board, 0, 0, 0, vec![], vec![]);
         let mut root_node = traverser.create_turn_root_node(PlayerId::South, state);

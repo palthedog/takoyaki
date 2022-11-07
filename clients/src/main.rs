@@ -67,6 +67,9 @@ enum Commands {
 struct MctsArgs {
     #[clap(long, short, value_parser)]
     iterations: usize,
+
+    #[clap(long, short = 'C', value_parser, default_value_t = 0.9)]
+    mcts_const: f64,
 }
 
 pub fn init_common(args: &ClientArgs) -> (Context, Vec<Card>) {
@@ -108,7 +111,10 @@ fn main() {
         Commands::Mcts(m) => run_mcts(
             &args.server,
             context,
-            format!("mcts-{}/{}@{}", m.iterations, deck_name, GIT_VERSION),
+            format!(
+                "mcts-{}-C={}/{}@{}",
+                m.iterations, m.mcts_const, deck_name, GIT_VERSION
+            ),
             deck,
             m,
         ),
@@ -145,7 +151,7 @@ fn run_mcts(server: &str, context: Context, name: String, deck: Vec<Card>, mcts_
     let mut client: Client<MctsPlayer> = Client::new(
         context,
         WireFormat::Flexbuffers,
-        MctsPlayer::new(name, 42, mcts_args.iterations),
+        MctsPlayer::new(name, 42, mcts_args.iterations, mcts_args.mcts_const),
         Box::new(move |games: &[GameInfo]| {
             let game_id = games[0].game_id;
             (game_id, deck.to_vec())
