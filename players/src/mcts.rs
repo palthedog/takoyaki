@@ -1,10 +1,7 @@
 use itertools::Itertools;
 use log::*;
 use more_asserts::*;
-use rand::{
-    seq::SliceRandom,
-    Rng,
-};
+use rand::seq::SliceRandom;
 use rand_mt::Mt64;
 use std::{
     cmp::Ordering,
@@ -25,6 +22,8 @@ use engine::{
     PlayerId,
     State,
 };
+
+use crate::utils::choose_random_action;
 
 use super::{
     utils::append_valid_actions,
@@ -833,10 +832,7 @@ impl Traverser {
         player_id: PlayerId,
         hands: &[Card],
     ) -> Action {
-        let mut acts: Vec<Action> = vec![];
-        append_valid_actions(state, hands, player_id, &mut acts);
-        let i = self.rng.gen_range(0..acts.len());
-        acts.swap_remove(i)
+        choose_random_action(&state, hands, player_id, &mut self.rng)
     }
 
     fn expand<'a>(

@@ -89,6 +89,9 @@ pub struct Board {
 
     width: i32,
     height: i32,
+
+    x_range: Vec<i32>,
+    y_range: Vec<i32>,
 }
 
 impl Board {
@@ -100,6 +103,8 @@ impl Board {
             cells,
             width,
             height,
+            x_range: (1..width - 1).collect(),
+            y_range: (1..height - 1).collect(),
         }
     }
 
@@ -142,6 +147,14 @@ impl Board {
 
     pub fn get_size(&self) -> (i32, i32) {
         (self.width, self.height)
+    }
+
+    pub fn get_x_range(&self) -> &[i32] {
+        &self.x_range
+    }
+
+    pub fn get_y_range(&self) -> &[i32] {
+        &self.y_range
     }
 
     pub fn count_surrounded_special_ink(&self) -> (i32, i32) {
@@ -243,14 +256,7 @@ pub fn load_board(board_path: &PathBuf) -> Board {
 
 pub fn load_board_from_lines(name: String, lines: &[&str]) -> Board {
     let cells = read_cells(lines);
-    let width: i32 = cells[0].len() as i32;
-    let height: i32 = cells.len() as i32;
-    Board {
-        name,
-        cells,
-        width,
-        height,
-    }
+    Board::new(name, cells)
 }
 
 fn read_cells(lines: &[&str]) -> Vec<Vec<BoardCell>> {

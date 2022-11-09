@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use log::*;
 use rand::Rng;
 use rand_mt::Mt64;
 
@@ -13,8 +12,8 @@ use engine::{
     State,
 };
 
-use super::{
-    utils,
+use crate::{
+    utils::choose_random_action,
     Player,
 };
 
@@ -54,10 +53,6 @@ impl Player for RandomPlayer {
     }
 
     fn get_action(&mut self, state: &State, hands: &[Card], _time_limit: &Duration) -> Action {
-        let mut actions_buffer: Vec<Action> = vec![];
-        utils::append_valid_actions(state, hands, self.player_id, &mut actions_buffer);
-        debug!("Got {} valid actions", actions_buffer.len());
-        let index = self.rng.gen_range(0..actions_buffer.len());
-        actions_buffer.remove(index)
+        choose_random_action(state, hands, self.player_id, &mut self.rng)
     }
 }
