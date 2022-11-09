@@ -1,8 +1,13 @@
 use itertools::Itertools;
 use log::*;
 use more_asserts::*;
-use rand::seq::SliceRandom;
-use rand_mt::Mt64;
+use rand::{
+    seq::SliceRandom,
+    Rng,
+    RngCore,
+    SeedableRng,
+};
+
 use std::{
     cmp::Ordering,
     collections::HashMap,
@@ -12,6 +17,7 @@ use std::{
         Instant,
     },
 };
+use wyhash::WyRng;
 
 use engine::{
     Action,
@@ -41,12 +47,12 @@ pub struct MctsPlayer {
     player_id: PlayerId,
     traverser: Option<Traverser>,
     board: Option<Board>,
-    rng: Mt64,
+    rng: WyRng,
 }
 
 impl MctsPlayer {
     pub fn new(name: String, seed: u64, iterations: usize, uct_constant: f64) -> Self {
-        let rng = Mt64::new(seed);
+        let rng = WyRng::seed_from_u64(seed);
         MctsPlayer {
             name,
             iterations,
@@ -202,7 +208,7 @@ impl Determinization {
         &mut self.player_cards[player_id.to_index()]
     }
 
-    fn set_hands(&mut self, player_id: PlayerId, hands: &[Card], rng: &mut Mt64) {
+    fn set_hands(&mut self, player_id: PlayerId, hands: &[Card], rng: &mut impl Rng) {
         let cards = self.get_cards_as_mut(player_id);
 
         let mut new_deck: Vec<Card> = Vec::new();
@@ -580,7 +586,7 @@ struct Traverser {
 
     uct_const: f64,
 
-    rng: Mt64,
+    rng: WyRng,
 }
 
 impl Traverser {
@@ -596,7 +602,7 @@ impl Traverser {
             traverser_player_id,
             my_initial_deck: player_initial_deck,
             uct_const,
-            rng: Mt64::new(seed),
+            rng: WyRng::seed_from_u64(seed),
         }
     }
 
@@ -832,7 +838,7 @@ impl Traverser {
         player_id: PlayerId,
         hands: &[Card],
     ) -> Action {
-        choose_random_action(&state, hands, player_id, &mut self.rng)
+        choose_random_action(state, hands, player_id, &mut self.rng)
     }
 
     fn expand<'a>(

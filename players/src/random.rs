@@ -1,7 +1,9 @@
 use std::time::Duration;
 
-use rand::Rng;
-use rand_mt::Mt64;
+use rand::{
+    Rng,
+    SeedableRng,
+};
 
 use engine::{
     Action,
@@ -11,6 +13,7 @@ use engine::{
     PlayerId,
     State,
 };
+use wyhash::WyRng;
 
 use crate::{
     utils::choose_random_action,
@@ -20,7 +23,7 @@ use crate::{
 pub struct RandomPlayer {
     player_id: PlayerId,
     name: String,
-    rng: Mt64,
+    rng: WyRng,
 }
 
 impl RandomPlayer {
@@ -28,7 +31,7 @@ impl RandomPlayer {
         RandomPlayer {
             player_id: PlayerId::South,
             name,
-            rng: Mt64::new(seed),
+            rng: WyRng::seed_from_u64(seed),
         }
     }
 }
